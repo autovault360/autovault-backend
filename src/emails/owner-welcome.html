@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="x-apple-disable-message-reformatting" />
+<meta name="color-scheme" content="light only" />
+<meta name="supported-color-schemes" content="light" />
+<title>You're a Secondary Owner on AutoVault</title>
+
+<style type="text/css">
+  :root { color-scheme: light only; supported-color-schemes: light; }
+</style>
+</head>
+<body class="av-bg" style="margin:0;padding:0;background-color:#EEF0F5;">
+<span class="av-pre" style="display:none;font-size:1px;color:#EEF0F5;">You've been added as a Secondary Owner on AutoVault. Sign in with the credentials below.</span>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#EEF0F5" class="av-bg" style="background-color:#EEF0F5;">
+  <tr><td align="center" class="av-wrap" style="padding:20px 12px;">
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" bgcolor="#FFFFFF" class="av-card av-card-table" style="width:600px;max-width:600px;background-color:#FFFFFF;border:1px solid #E4E6EE;border-radius:20px;">
+
+      <tr><td align="center" class="av-pad-head" style="padding:28px 28px 18px 28px;">
+        <img class="av-logo" src="https://pub-f5252f82c90c4ce38b12f50fbac1fea7.r2.dev/email-assets/av-logo.png" width="230" alt="AutoVault" style="display:block;border:0;height:auto;" />
+      </td></tr>
+      <tr><td class="av-pad-divider" style="padding:0 28px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td class="av-line" style="border-top:1px solid #E7E9F1;font-size:0;line-height:0;">&nbsp;</td></tr></table></td></tr>
+
+      <tr><td class="av-pad-hero" style="padding:24px 28px 6px 28px;">
+        <p style="margin:0 0 14px 0;font-family:Arial,Helvetica,sans-serif;font-size:17px;line-height:1.5;color:#0B0B14;font-weight:bold;" class="av-text">Hi {{name}},</p>
+        <p style="margin:0 0 14px 0;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.65;color:#54566B;" class="av-muted">You&rsquo;ve been added as a <b style="color:#2743E8;" class="av-accent">Secondary Owner</b> on AutoVault. You can sign in to the owner dashboard to review dealerships, registrations, and platform activity.</p>
+        <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.65;color:#54566B;" class="av-muted">Use the credentials below for your first login. You&rsquo;ll be asked to set a new password before you can use the dashboard.</p>
+      </td></tr>
+
+      <tr><td class="av-pad-box-wrap" style="padding:14px 28px 6px 28px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" bgcolor="#F4F6FE" class="av-box" style="background-color:#F4F6FE;border:1px solid #DEE4FB;border-radius:14px;">
+          <tr><td class="av-box-inner" style="padding:18px;">
+            <p class="av-accent" style="margin:0 0 16px 0;font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:bold;color:#2743E8;">Your Owner Login</p>
+
+            <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+              <tr>
+                <td style="padding:0 0 12px 0;">
+                  <p class="av-faint" style="margin:0 0 6px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;color:#8A8CA0;">OWNER LOGIN URL</p>
+                  <div class="av-field" style="background-color:#FFFFFF;border:1px solid #E4E6EE;border-radius:9px;padding:12px 14px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.4;color:#0B0B14;word-break:break-word;">{{loginUrl}}</div>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:0 0 12px 0;">
+                  <p class="av-faint" style="margin:0 0 6px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;color:#8A8CA0;">EMAIL</p>
+                  <div class="av-field" style="background-color:#FFFFFF;border:1px solid #E4E6EE;border-radius:9px;padding:12px 14px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.4;color:#0B0B14;word-break:break-word;">{{email}}</div>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:0;">
+                  <p class="av-faint" style="margin:0 0 6px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;color:#8A8CA0;">TEMP PASSWORD</p>
+                  <div class="av-field" style="background-color:#FFFFFF;border:1px solid #E4E6EE;border-radius:9px;padding:12px 14px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.4;color:#0B0B14;word-break:break-word;">{{tempPassword}}</div>
+                </td>
+              </tr>
+            </table>
+
+            <p class="av-muted" style="margin:16px 0 0 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#54566B;">For security, you must choose a new password the first time you sign in. The temporary password will not work after that.</p>
+          </td></tr>
+        </table>
+      </td></tr>
+
+      <tr><td class="av-pad-btn" style="padding:18px 28px 6px 28px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" class="av-btn-wrap"><tr>
+          <td align="center" bgcolor="#2743E8" style="border-radius:10px;background-color:#2743E8;">
+            <a href="{{loginUrl}}" style="display:inline-block;padding:13px 22px;color:#FFFFFF;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;">Open Owner Login</a>
+          </td>
+        </tr></table>
+      </td></tr>
+
+      <tr><td class="av-pad-box-wrap" style="padding:14px 28px 6px 28px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" bgcolor="#F4F6FE" class="av-box" style="background-color:#F4F6FE;border:1px solid #DEE4FB;border-radius:14px;"><tr><td class="av-box-inner" style="padding:18px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr>
+            <td valign="middle" width="72" class="av-stack-icon" style="padding-right:18px;"><img src="https://pub-f5252f82c90c4ce38b12f50fbac1fea7.r2.dev/email-assets/av-icon-help.png" width="56" height="56" alt="" style="display:block;border:0;" /></td>
+            <td valign="middle" class="av-stack-copy">
+              <p style="margin:0 0 5px 0;font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:bold;color:#2743E8;" class="av-accent">Need Help?</p>
+              <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#54566B;" class="av-muted">If you were not expecting this invitation, you can ignore this email.</p>
+            </td>
+          </tr></table>
+        </td></tr></table>
+      </td></tr>
+
+      <tr><td align="center" class="av-pad-foot-top" style="padding:20px 28px 6px 28px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr>
+          <td class="av-line" style="border-top:1px solid #E7E9F1;font-size:0;line-height:0;">&nbsp;</td>
+          <td width="120" align="center" style="padding:0 14px;"><img src="https://pub-f5252f82c90c4ce38b12f50fbac1fea7.r2.dev/email-assets/av-mark.png" width="72" height="72" alt="AutoVault" style="display:block;border:0;" /></td>
+          <td class="av-line" style="border-top:1px solid #E7E9F1;font-size:0;line-height:0;">&nbsp;</td>
+        </tr></table>
+      </td></tr>
+      <tr><td align="center" style="padding:14px 0 18px 0;">
+        <span style="font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;letter-spacing:5px;color:#2743E8;" class="av-wordmark">AUTOVAULT</span>
+      </td></tr>
+      <tr><td align="center" class="av-pad-foot-note" style="padding:0 28px 24px 28px;">
+        <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#8A8CA0;" class="av-faint">You&rsquo;re receiving this email because you were added as a Secondary Owner on AutoVault.<br />If this wasn&rsquo;t you, you can safely ignore this email.</p>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body></html>

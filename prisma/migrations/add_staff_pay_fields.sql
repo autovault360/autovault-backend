@@ -1,0 +1,3 @@
+ALTER TABLE staff_members
+  ADD COLUMN IF NOT EXISTS pay_method VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS pay_doc_url TEXT;

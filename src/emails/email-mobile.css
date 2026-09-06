@@ -1,0 +1,66 @@
+
+  @media only screen and (max-width: 600px) {
+    .av-wrap { padding: 10px 8px !important; }
+    .av-card-table {
+      width: 100% !important;
+      max-width: 100% !important;
+      border-radius: 14px !important;
+    }
+    .av-pad-head { padding: 20px 16px 12px 16px !important; }
+    .av-pad-divider { padding: 0 16px !important; }
+    .av-pad-hero { padding: 18px 16px 6px 16px !important; }
+    .av-pad-box-wrap { padding: 12px 16px 6px 16px !important; }
+    .av-pad-text { padding: 10px 16px 4px 16px !important; }
+    .av-pad-btn { padding: 14px 16px 6px 16px !important; }
+    .av-pad-foot-top { padding: 16px 16px 4px 16px !important; }
+    .av-pad-foot { padding: 8px 16px 14px 16px !important; }
+    .av-pad-foot-note { padding: 0 16px 18px 16px !important; }
+    .av-logo {
+      width: 168px !important;
+      max-width: 72% !important;
+      height: auto !important;
+    }
+    .av-h1 {
+      font-size: 22px !important;
+      line-height: 1.25 !important;
+    }
+    .av-lead {
+      font-size: 15px !important;
+      line-height: 1.55 !important;
+    }
+    .av-box-inner { padding: 16px !important; }
+    .av-box-cell {
+      padding-left: 14px !important;
+      padding-right: 14px !important;
+    }
+    .av-field { padding: 10px 12px !important; }
+    .av-btn-wrap { width: 100% !important; }
+    .av-btn-wrap a {
+      display: block !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
+      text-align: center !important;
+      padding: 14px 16px !important;
+    }
+    .av-stack-icon {
+      display: block !important;
+      width: 100% !important;
+      padding-right: 0 !important;
+      padding-bottom: 8px !important;
+      text-align: center !important;
+    }
+    .av-stack-copy {
+      display: block !important;
+      width: 100% !important;
+    }
+    .av-social td { padding: 0 8px !important; }
+    .av-tax-table td {
+      display: block !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
+      padding: 8px 12px !important;
+      border-top: 1px solid #E7E9F1 !important;
+    }
+    .av-tax-table tr:first-child td { border-top: none !important; }
+    .av-pill-wrap { padding: 12px 16px 4px 16px !important; }
+  }

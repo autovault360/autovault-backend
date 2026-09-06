@@ -1,0 +1,1359 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ??? Enums ???????????????????????????????????????????????????????????????????
+
+enum UserRole {
+  platform_owner
+  owner
+  manager
+  sales_rep
+  cpa
+  wholesale_dealer
+}
+
+enum DealershipStatus {
+  pending
+  active
+  suspended
+  canceled
+  payment_failed
+}
+
+enum PlanSlug {
+  wholesaler
+  independent_dealer
+  growing_dealership
+}
+
+enum RegistrationStatus {
+  pending
+  checkout_started
+  active
+  payment_failed
+  canceled
+}
+
+enum PaymentStatus {
+  pending
+  on_time
+  behind
+}
+
+enum VehicleStatus {
+  in_stock
+  needs_attention
+  pending_deal
+  sold
+  loss
+  wholesale
+  out_of_state_sale
+  arbitration
+}
+
+enum CustomerStatus {
+  lead
+  active_deal
+  customer
+}
+
+enum CustomerType {
+  individual
+  dealer
+  wholesale
+}
+
+enum LeadSource {
+  website
+  referral
+  walk_in
+  ads
+  social_media
+  other
+}
+
+enum DealJacketWorkflowStatus {
+  draft
+  pending_review
+  changes_requested
+  resubmitted
+  approved
+  rejected
+}
+
+enum DealType {
+  Retail
+  Wholesale
+  Fleet
+}
+
+enum CommissionType {
+  percentage
+  manual
+  flat
+}
+
+enum SalesRepCommissionType {
+  percentage
+  flat
+}
+
+enum CommissionStatus {
+  pending_review
+  approved
+  rejected
+  paid
+}
+
+
+enum PaymentMethodStatus {
+  unpaid
+  paid
+  partial
+}
+
+enum FlooringRateType {
+  monthly
+  daily
+  apr
+}
+
+enum TaxFilingFrequency {
+  monthly
+  quarterly
+  annual
+  custom
+}
+
+enum TaxPeriodStatus {
+  open
+  due
+  paid
+  filed
+  closed
+}
+
+enum CpaNotePriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum CpaNoteStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  ARCHIVED
+}
+
+enum CalendarEventType {
+  compliance
+  appointment
+  payroll
+  follow_up
+  task
+}
+
+enum InvitationStatus {
+  pending
+  accepted
+  revoked
+  expired
+}
+
+enum PayrollRunStatus {
+  draft
+  processed
+  paid
+}
+
+// ??? Platform / Onboarding ????????????????????????????????????????????????????
+
+model Registration {
+  id                       String             @id @default(uuid()) @db.Uuid
+  name                     String
+  email                    String             @unique
+  phone                    String             @default("")
+  dealershipName           String
+  city                     String?
+  zipCode                  String  @default("")
+  state                    String
+  plan                     PlanSlug?
+  status                   RegistrationStatus @default(pending)
+  paymentStatus            PaymentStatus      @default(pending)
+  monthlyFee               Decimal            @default(99.99) @db.Decimal(12, 2)
+  stripeCustomerId         String?
+  stripeSubscriptionId     String?            @unique
+  stripeCheckoutSessionId  String?
+  completionTokenHash      String?
+  completionTokenExpiresAt DateTime?
+  emailSentAt              DateTime?
+  welcomeEmailLockId       String?
+  temporaryPasswordHash    String?
+  temporaryPasswordSentAt  DateTime?
+  dealershipId             String?            @db.Uuid
+  dealership               Dealership?        @relation(fields: [dealershipId], references: [id])
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
+
+  @@index([state])
+  @@index([zipCode])
+  @@index([stripeCustomerId])
+  @@index([stripeCheckoutSessionId])
+  @@map("registrations")
+}
+
+model Dealership {
+  id                   String           @id @default(uuid()) @db.Uuid
+  name                 String
+  slug                 String           @unique
+  email                String?
+  phone                String?
+  address              String?
+  city                 String?
+  state                String?
+  zip                  String?
+  plan                 PlanSlug?
+  status               DealershipStatus @default(pending)
+  paymentStatus        PaymentStatus    @default(pending)
+  monthlyFee           Decimal          @default(99.99) @db.Decimal(12, 2)
+  stripeCustomerId     String?
+  stripeSubscriptionId String?          @unique
+  billingAutoExpense   Boolean          @default(false)
+  billingNotifyBefore  Boolean          @default(true)
+  billingReminderFor   DateTime?
+  billingDueEmailFor   DateTime?
+  cardBrand            String?
+  cardLast4            String?          @db.VarChar(4)
+  cardExpMonth         Int?
+  cardExpYear          Int?
+  currentPeriodEnd     DateTime?
+  kpiColors            Json?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  deletedAt            DateTime?
+
+  registrations        Registration[]
+  users                User[]
+  invitations          Invitation[]
+  vehicles             Vehicle[]
+  customers            Customer[]
+  deals                Deal[]
+  dealJackets          DealJacket[]
+  dealershipExpenses   DealershipExpense[]
+  vehicleExpenses      VehicleExpense[]
+  flooringPlans        FlooringPlan[]
+  flooringUndoSnapshot FlooringUndoSnapshot?
+  taxSettings          DealershipTaxSettings?
+  taxFilingPeriods     TaxFilingPeriod[]
+  salesRepProfiles     SalesRepProfile[]
+  commissions          SalesRepCommission[]
+  payrollRuns          PayrollRun[]
+  staff                StaffMember[]
+  cpaNotes             CpaNote[]
+  calendarEvents       CalendarEvent[]
+  calendarDayNotes     CalendarDayNote[]
+  dashboardNotes       DashboardNote[]
+  conversations        Conversation[]
+  notifications        Notification[]
+  auditLogs            AuditLog[]
+  files                FileObject[]
+  vehicleStatusHistory VehicleStatusHistory[]
+  pricingHistory       PricingHistory[]
+  vehicleImages        VehicleImage[]
+  billingPayments      BillingPayment[]
+  supportMessages      SupportMessage[]
+
+  @@index([status])
+  @@index([state])
+  @@index([stripeCustomerId])
+  @@map("dealerships")
+}
+
+model BillingPayment {
+  id                     String     @id @default(uuid()) @db.Uuid
+  dealershipId           String     @db.Uuid
+  dealership             Dealership @relation(fields: [dealershipId], references: [id], onDelete: Cascade)
+  stripeInvoiceId        String     @unique
+  stripePaymentIntentId  String?
+  amount                 Decimal    @db.Decimal(12, 2)
+  currency               String     @default("usd") @db.VarChar(10)
+  status                 String     @db.VarChar(20)
+  planSlug               String?    @db.VarChar(40)
+  planLabel              String?    @db.VarChar(80)
+  paidAt                 DateTime?
+  periodStart            DateTime?
+  periodEnd              DateTime?
+  hostedInvoiceUrl       String?
+  expenseId              String?    @db.Uuid
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @updatedAt
+
+  @@index([dealershipId, paidAt])
+  @@map("billing_payments")
+}
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String
+  username     String?
+  passwordHash String
+  fullName     String
+  phone        String?
+  imageUrl     String?
+  role         UserRole
+  isActive     Boolean   @default(true)
+  dealershipId String?   @db.Uuid
+  dealership   Dealership? @relation(fields: [dealershipId], references: [id])
+  lastLoginAt  DateTime?
+  mustResetPassword Boolean @default(false)
+  isMainPlatformOwner Boolean @default(false)
+   introCompleted   Boolean   @default(false)
+   termsAccepted    Boolean   @default(false)
+   termsVersion     String?
+   termsPrintedName String?
+   termsDealership  String?
+   termsSignature   String?   @db.Text
+   termsAcceptedAt  DateTime?
+   termsIp          String?
+   termsUserAgent   String?
+   createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  refreshTokens        RefreshToken[]
+  passwordResetTokens  PasswordResetToken[]
+  invitationsSent      Invitation[]         @relation("InvitationInviter")
+  salesRepProfile      SalesRepProfile?
+  auditLogs            AuditLog[]
+  notifications        Notification[]
+  vehiclesCreated      Vehicle[]            @relation("VehicleCreatedBy")
+  customersCreated     Customer[]           @relation("CustomerCreatedBy")
+  customersAsRep       Customer[]           @relation("CustomerSalesRep")
+  dealsAsRep           Deal[]               @relation("DealSalesRep")
+  dealsCreated         Deal[]               @relation("DealCreatedBy")
+  dealJacketsAsRep     DealJacket[]         @relation("JacketSalesRep")
+  dealJacketsReviewed  DealJacket[]         @relation("JacketReviewedBy")
+  dealJacketActivity   DealJacketActivity[]
+  messagesSent         Message[]
+  conversationsCreated Conversation[]   @relation("ConversationCreator")
+  conversationMembers  ConversationMember[]
+  messageReads         MessageRead[]
+  messageReactions     MessageReaction[]
+  conversationSessions ConversationSession[]
+  userPresence         UserPresence?
+  typingStatus         TypingStatus[]
+  notificationQueue    NotificationQueue[]
+  calendarEventsCreated CalendarEvent[]
+  cpaNotesCreated      CpaNote[]            @relation("CpaNoteCreatedBy")
+  cpaNotesAssigned     CpaNote[]            @relation("CpaNoteAssignedTo")
+  cpaNoteComments      CpaNoteComment[]
+  filesUploaded        FileObject[]
+  commissionsPaid      SalesRepCommission[] @relation("CommissionPaidBy")
+  commissionsAsRep     SalesRepCommission[] @relation("CommissionSalesRep")
+  supportMessages      SupportMessage[]
+
+  @@unique([dealershipId, email])
+  @@index([email])
+  @@index([username])
+  @@index([role])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("password_reset_tokens")
+}
+
+model Invitation {
+  id           String           @id @default(uuid()) @db.Uuid
+  dealershipId String           @db.Uuid
+  dealership   Dealership       @relation(fields: [dealershipId], references: [id], onDelete: Cascade)
+  email        String
+  role         UserRole
+  fullName     String?
+  tokenHash    String
+  status       InvitationStatus @default(pending)
+  sendCount    Int              @default(1)
+  lastSentAt   DateTime         @default(now())
+  invitedById  String?          @db.Uuid
+  invitedBy    User?            @relation("InvitationInviter", fields: [invitedById], references: [id])
+  expiresAt    DateTime
+  acceptedAt   DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([dealershipId])
+  @@index([tokenHash])
+  @@index([email])
+  @@map("invitations")
+}
+
+// ??? Vehicles ?????????????????????????????????????????????????????????????????
+
+model Vehicle {
+  id                    String        @id @default(uuid()) @db.Uuid
+  dealershipId          String        @db.Uuid
+  dealership            Dealership    @relation(fields: [dealershipId], references: [id])
+  vin                   String
+  stockNumber           String?
+  make                  String
+  model                 String
+  trim                  String?
+  year                  Int
+  bodyStyle             String?
+  exteriorColor         String?
+  interiorColor         String?
+  drivetrain            String?
+  fuelType              String?
+  engine                String?
+  transmission          String?
+  mileage               Int?
+  doors                 Int?
+  acquisitionDate       DateTime?     @db.Date
+  acquisitionCost       Decimal?      @db.Decimal(12, 2)
+  askingPrice           Decimal?      @db.Decimal(12, 2)
+  marketValue           Decimal?      @db.Decimal(12, 2)
+  wholesalePrice        Decimal?      @db.Decimal(12, 2)
+  reconditioningCost    Decimal       @default(0) @db.Decimal(12, 2)
+  totalInvested         Decimal       @default(0) @db.Decimal(12, 2)
+  registrationFees      Decimal       @default(0) @db.Decimal(12, 2)
+  auctionFees           Decimal       @default(0) @db.Decimal(12, 2)
+  flooringFees          Decimal       @default(0) @db.Decimal(12, 2)
+  titleStatus           String?
+  licensePlate          String?
+  state                 String?
+  sellerAuction         String?
+  purchaseType          String?
+  notes                 String?
+  titleReceived         Boolean       @default(true)
+  soldAt                DateTime?
+  soldPrice             Decimal?      @db.Decimal(12, 2)
+  flooringStartDate     DateTime?     @db.Date
+  flooringPlanId        String?       @db.Uuid
+  flooringPlan          FlooringPlan? @relation(fields: [flooringPlanId], references: [id])
+  status                VehicleStatus @default(in_stock)
+  isWholesale           Boolean       @default(false)
+  auctionHouse          String?
+  auctionDate           DateTime?     @db.Date
+  auctionRuns           Int           @default(0)
+  saleChannel           String?       // auction | dealer | other
+  titlePresent          Boolean       @default(true)
+  fees                  Json          @default("{}")
+  additionalExpenses    Decimal       @default(0) @db.Decimal(12, 2)
+  customerName          String?
+  customerPhone         String?
+  customerEmail         String?
+  customerAddress       String?
+  createdById           String?       @db.Uuid
+  createdBy             User?         @relation("VehicleCreatedBy", fields: [createdById], references: [id])
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  deletedAt             DateTime?
+
+  images         VehicleImage[]
+  statusHistory  VehicleStatusHistory[]
+  pricingHistory PricingHistory[]
+  expenses       VehicleExpense[]
+  deal           Deal?
+  dealJackets    DealJacket[]
+
+  // Active VIN uniqueness is enforced by a partial unique index in SQL:
+  // vehicles_dealershipId_vin_active_key ON (dealershipId, vin) WHERE deletedAt IS NULL
+  // Soft-deleted rows keep their VIN so history remains intact and the VIN can be reused.
+  @@index([dealershipId, vin])
+  @@index([dealershipId, status, deletedAt])
+  @@index([dealershipId, stockNumber])
+  @@index([dealershipId, soldAt])
+  @@map("vehicles")
+}
+
+model VehicleImage {
+  id           String     @id @default(uuid()) @db.Uuid
+  vehicleId    String     @db.Uuid
+  vehicle      Vehicle    @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  dealershipId String     @db.Uuid
+  dealership   Dealership @relation(fields: [dealershipId], references: [id])
+  storagePath  String
+  url          String?
+  sortOrder    Int        @default(0)
+  createdAt    DateTime   @default(now())
+
+  @@index([vehicleId])
+  @@map("vehicle_images")
+}
+
+model VehicleStatusHistory {
+  id           String         @id @default(uuid()) @db.Uuid
+  vehicleId    String         @db.Uuid
+  vehicle      Vehicle        @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  dealershipId String         @db.Uuid
+  dealership   Dealership     @relation(fields: [dealershipId], references: [id])
+  fromStatus   VehicleStatus?
+  toStatus     VehicleStatus
+  note         String?
+  changedById  String?        @db.Uuid
+  createdAt    DateTime       @default(now())
+
+  @@index([vehicleId, createdAt])
+  @@map("vehicle_status_history")
+}
+
+model PricingHistory {
+  id           String     @id @default(uuid()) @db.Uuid
+  vehicleId    String     @db.Uuid
+  vehicle      Vehicle    @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  dealershipId String     @db.Uuid
+  dealership   Dealership @relation(fields: [dealershipId], references: [id])
+  askingPrice  Decimal?   @db.Decimal(12, 2)
+  marketValue  Decimal?   @db.Decimal(12, 2)
+  note         String?
+  changedById  String?    @db.Uuid
+  createdAt    DateTime   @default(now())
+
+  @@index([vehicleId, createdAt])
+  @@map("pricing_history")
+}
+
+model VehicleExpense {
+  id                String              @id @default(uuid()) @db.Uuid
+  vehicleId         String              @db.Uuid
+  vehicle           Vehicle             @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  dealershipId      String              @db.Uuid
+  dealership        Dealership          @relation(fields: [dealershipId], references: [id])
+  repairDate        DateTime            @db.Date
+  category          String              @default("repair")
+  repairType        String?
+  description       String
+  expenseName       String?
+  shopVendor        String?
+  paymentMethod     String?
+  invoiceNumber     String?
+  notes             String?
+  receiptStoragePath String?
+  laborCost         Decimal             @default(0) @db.Decimal(12, 2)
+  partsCost         Decimal             @default(0) @db.Decimal(12, 2)
+  otherFees         Decimal             @default(0) @db.Decimal(12, 2)
+  totalCost         Decimal             @db.Decimal(12, 2)
+  isInternal        Boolean             @default(false)
+  paymentStatus     PaymentMethodStatus @default(unpaid)
+  datePaid          DateTime?           @db.Date
+  createdById       String?             @db.Uuid
+  createdAt         DateTime            @default(now())
+  deletedAt         DateTime?
+
+  @@index([dealershipId, vehicleId])
+  @@map("vehicle_expenses")
+}
+
+model FlooringPlan {
+  id                   String           @id @default(uuid()) @db.Uuid
+  dealershipId         String           @db.Uuid
+  dealership           Dealership       @relation(fields: [dealershipId], references: [id], onDelete: Cascade)
+  name                 String           @default("Standard Floor Plan")
+  rateType             FlooringRateType @default(monthly)
+  baseRate             Decimal          @db.Decimal(12, 4)
+  effectiveDate        DateTime         @db.Date
+  rateIncreaseEnabled  Boolean          @default(false)
+  increaseAfterDays    Int?
+  increaseAmountType   String?
+  increaseAmount       Decimal?         @db.Decimal(12, 2)
+  maxCap               Decimal?         @db.Decimal(12, 2)
+  buyFee               Decimal?         @db.Decimal(12, 2)
+  lateFeePerDay        Decimal?         @db.Decimal(12, 2)
+  lateFeeAfterDays     Int?
+  gracePeriodDays      Int?
+  isActive             Boolean          @default(true)
+  /** Full dealer UI flooring config (tiers, payoffDays, applied, scope). */
+  configJson           Json?
+  createdById          String?          @db.Uuid
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  deletedAt            DateTime?
+
+  vehicles Vehicle[]
+
+  @@index([dealershipId, isActive])
+  @@map("flooring_plans")
+}
+
+/** One 3-hour undo snapshot per dealership after flooring is removed from all vehicles. */
+model FlooringUndoSnapshot {
+  id           String     @id @default(uuid()) @db.Uuid
+  dealershipId String     @unique @db.Uuid
+  dealership   Dealership @relation(fields: [dealershipId], references: [id], onDelete: Cascade)
+  expiresAt    DateTime
+  snapshot     Json
+  createdById  String?    @db.Uuid
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([expiresAt])
+  @@map("flooring_undo_snapshots")
+}
+
+// ??? Customers ????????????????????????????????????????????????????????????????
+
+model Customer {
+  id                    String         @id @default(uuid()) @db.Uuid
+  dealershipId          String         @db.Uuid
+  dealership            Dealership     @relation(fields: [dealershipId], references: [id])
+  type                  CustomerType   @default(individual)
+  name                  String
+  phone                 String?
+  email                 String?
+  address               String?
+  address2              String?
+  city                  String?
+  state                 String?
+  zip                   String?
+  driversLicenseNumber  String?
+  imageUrl              String?
+  status                CustomerStatus @default(lead)
+  salesRepId            String?        @db.Uuid
+  salesRep              User?          @relation("CustomerSalesRep", fields: [salesRepId], references: [id])
+  source                LeadSource?
+  dateOfBirth           DateTime?      @db.Date
+  notes                 String?
+  createdById           String?        @db.Uuid
+  createdBy             User?          @relation("CustomerCreatedBy", fields: [createdById], references: [id])
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  deletedAt             DateTime?
+
+  customerNotes     CustomerNote[]
+  customerDocuments CustomerDocument[]
+  deals             Deal[]
+  dealJackets       DealJacket[]
+
+  @@index([dealershipId, status, deletedAt])
+  @@index([dealershipId, email])
+  @@index([dealershipId, phone])
+  @@map("customers")
+}
+
+model CustomerNote {
+  id           String     @id @default(uuid()) @db.Uuid
+  customerId   String     @db.Uuid
+  customer     Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  dealershipId String     @db.Uuid
+  body         String
+  createdById  String?    @db.Uuid
+  createdAt    DateTime   @default(now())
+  deletedAt    DateTime?
+
+  @@index([customerId])
+  @@map("customer_notes")
+}
+
+model CustomerDocument {
+  id           String     @id @default(uuid()) @db.Uuid
+  customerId   String     @db.Uuid
+  customer     Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  dealershipId String     @db.Uuid
+  label        String
+  storagePath  String
+  createdById  String?    @db.Uuid
+  createdAt    DateTime   @default(now())
+  deletedAt    DateTime?
+
+  @@index([customerId])
+  @@map("customer_documents")
+}
+
+// ??? Deals & Jackets ??????????????????????????????????????????????????????????
+
+model Deal {
+  id                   String          @id @default(uuid()) @db.Uuid
+  vehicleId            String          @unique @db.Uuid
+  vehicle              Vehicle         @relation(fields: [vehicleId], references: [id])
+  customerId           String          @db.Uuid
+  customer             Customer        @relation(fields: [customerId], references: [id])
+  dealershipId         String          @db.Uuid
+  dealership           Dealership      @relation(fields: [dealershipId], references: [id])
+  saleDate             DateTime        @db.Date
+  totalPriceOtd        Decimal         @db.Decimal(12, 2)
+  totalCollected       Decimal         @default(0) @db.Decimal(12, 2)
+  salesTaxAmount       Decimal         @default(0) @db.Decimal(12, 2)
+  licenseFees          Decimal         @default(0) @db.Decimal(12, 2)
+  dmvFees              Decimal         @default(0) @db.Decimal(12, 2)
+  otherFees            Decimal         @default(0) @db.Decimal(12, 2)
+  soldPriceBeforeTax   Decimal?        @db.Decimal(12, 2)
+  commissionAmount     Decimal?        @db.Decimal(12, 2)
+  commissionRate       Decimal?        @db.Decimal(5, 2)
+  commissionType       CommissionType?
+  netProfit            Decimal?        @db.Decimal(12, 2)
+  salesRepId           String?         @db.Uuid
+  salesRep             User?           @relation("DealSalesRep", fields: [salesRepId], references: [id])
+  rosNumber            String?
+  zipOfSale            String?
+  notes                String?
+  createdById          String?         @db.Uuid
+  createdBy            User?           @relation("DealCreatedBy", fields: [createdById], references: [id])
+  createdAt            DateTime        @default(now())
+  deletedAt            DateTime?
+
+  dealJacket DealJacket?
+
+  @@index([dealershipId, saleDate])
+  @@map("deals")
+}
+
+model DealJacket {
+  id                  String                   @id @default(uuid()) @db.Uuid
+  dealershipId        String                   @db.Uuid
+  dealership          Dealership               @relation(fields: [dealershipId], references: [id])
+  vehicleId           String                   @db.Uuid
+  vehicle             Vehicle                  @relation(fields: [vehicleId], references: [id])
+  customerId          String                   @db.Uuid
+  customer            Customer                 @relation(fields: [customerId], references: [id])
+  dealId              String?                  @unique @db.Uuid
+  deal                Deal?                    @relation(fields: [dealId], references: [id])
+  salesRepId          String?                  @db.Uuid
+  salesRep            User?                    @relation("JacketSalesRep", fields: [salesRepId], references: [id])
+  jacketNumber        String
+  soldPrice           Decimal                  @default(0) @db.Decimal(12, 2)
+  totalTax            Decimal                  @default(0) @db.Decimal(12, 2)
+  totalSalePrice      Decimal                  @default(0) @db.Decimal(12, 2)
+  downPayment         Decimal                  @default(0) @db.Decimal(12, 2)
+  amountFinanced      Decimal                  @default(0) @db.Decimal(12, 2)
+  balanceDue          Decimal                  @default(0) @db.Decimal(12, 2)
+  totalInvested       Decimal                  @default(0) @db.Decimal(12, 2)
+  additionalExpenses  Decimal                  @default(0) @db.Decimal(12, 2)
+  commissionAmount    Decimal                  @default(0) @db.Decimal(12, 2)
+  profitGross         Decimal                  @default(0) @db.Decimal(12, 2)
+  profitNet           Decimal                  @default(0) @db.Decimal(12, 2)
+  tradeInAllowance    Decimal                  @default(0) @db.Decimal(12, 2)
+  warrantyAmount      Decimal                  @default(0) @db.Decimal(12, 2)
+  gapAmount           Decimal                  @default(0) @db.Decimal(12, 2)
+  fees                Json                     @default("{}")
+  lender              String?
+  rosNumber           String?
+  notes               String?
+  reviewNotes         String?
+  rejectionReason     String?
+  dealType            DealType                 @default(Retail)
+  workflowStatus      DealJacketWorkflowStatus @default(draft)
+  dateSold            DateTime?
+  reviewedAt          DateTime?
+  reviewedById        String?                  @db.Uuid
+  reviewedBy          User?                    @relation("JacketReviewedBy", fields: [reviewedById], references: [id])
+  createdById         String?                  @db.Uuid
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  deletedAt           DateTime?
+
+  documents      DealJacketDocument[]
+  activity       DealJacketActivity[]
+  commission     SalesRepCommission?
+  filingPeriodDeals FilingPeriodDeal[]
+
+  @@index([dealershipId, workflowStatus])
+  @@index([dealershipId, jacketNumber])
+  @@map("deal_jackets")
+}
+
+model DealJacketDocument {
+  id           String     @id @default(uuid()) @db.Uuid
+  dealJacketId String     @db.Uuid
+  dealJacket   DealJacket @relation(fields: [dealJacketId], references: [id], onDelete: Cascade)
+  fileUrl      String
+  documentName String
+  fileType     String     @default("application/pdf")
+  uploadedAt   DateTime   @default(now())
+
+  @@index([dealJacketId])
+  @@map("deal_jacket_documents")
+}
+
+model DealJacketActivity {
+  id           String     @id @default(uuid()) @db.Uuid
+  dealJacketId String     @db.Uuid
+  dealJacket   DealJacket @relation(fields: [dealJacketId], references: [id], onDelete: Cascade)
+  action       String
+  actorId      String?    @db.Uuid
+  actor        User?      @relation(fields: [actorId], references: [id])
+  actorName    String
+  oldStatus    String?
+  newStatus    String?
+  detail       Json?
+  createdAt    DateTime   @default(now())
+
+  @@index([dealJacketId, createdAt])
+  @@map("deal_jacket_activity")
+}
+
+// ??? Expenses & Payroll ???????????????????????????????????????????????????????
+
+model DealershipExpense {
+  id                   String          @id @default(uuid()) @db.Uuid
+  dealershipId         String          @db.Uuid
+  dealership           Dealership      @relation(fields: [dealershipId], references: [id])
+  expenseDate          DateTime        @db.Date
+  category             String          @db.VarChar(50)
+  subcategory          String?         @db.VarChar(80)
+  name                 String          @db.VarChar(255)
+  vendor               String          @default("")
+  description          String          @default("")
+  amount               Decimal         @db.Decimal(12, 2)
+  status               String          @default("unpaid") @db.VarChar(20)
+  recurringFrequency   String?         @db.VarChar(20)
+  vehicleVin           String?         @db.VarChar(50)
+  referenceNumber      String?
+  paymentMethod        String?
+  receiptStoragePath   String?
+  notes                String?
+  taxDeductible        Boolean         @default(true)
+  isRecurring          Boolean         @default(false)
+  createdById          String?         @db.Uuid
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  deletedAt            DateTime?
+
+  @@index([dealershipId, expenseDate])
+  @@index([dealershipId, vehicleVin])
+  @@map("dealership_expenses")
+}
+
+model SalesRepProfile {
+  id             String     @id @default(uuid()) @db.Uuid
+  userId         String     @unique @db.Uuid
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dealershipId   String     @db.Uuid
+  dealership     Dealership @relation(fields: [dealershipId], references: [id])
+  birthDate      DateTime?  @db.Date
+  baseSalary     Decimal    @default(0) @db.Decimal(10, 2)
+  payFrequency   String?    @db.VarChar(20)
+  payDay         Int?
+  payAnchor      DateTime?  @db.Date
+  paymentMethod  String?    @db.VarChar(20)
+  payDocUrl      String?
+  commissionType SalesRepCommissionType @default(percentage)
+  /// Percentage: 0–1 fraction. Flat: dollar amount.
+  commissionRate Decimal                @default(0.10) @db.Decimal(12, 4)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@index([dealershipId])
+  @@map("sales_rep_profiles")
+}
+
+model SalesRepCommission {
+  id               String           @id @default(uuid()) @db.Uuid
+  dealershipId     String           @db.Uuid
+  dealership       Dealership       @relation(fields: [dealershipId], references: [id])
+  salesRepId       String           @db.Uuid
+  salesRep         User             @relation("CommissionSalesRep", fields: [salesRepId], references: [id])
+  dealJacketId     String           @unique @db.Uuid
+  dealJacket       DealJacket       @relation(fields: [dealJacketId], references: [id], onDelete: Cascade)
+  commissionAmount Decimal          @db.Decimal(12, 2)
+  grossProfit      Decimal          @db.Decimal(12, 2)
+  soldPrice        Decimal          @db.Decimal(12, 2)
+  /// Snapshot of profile rate (0–1 fraction) or flat $ amount at approval time
+  commissionRate   Decimal          @db.Decimal(12, 4)
+  status           CommissionStatus @default(pending_review)
+  paidAt           DateTime?
+  paidById         String?          @db.Uuid
+  paidBy           User?            @relation("CommissionPaidBy", fields: [paidById], references: [id])
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  deletedAt        DateTime?
+
+  @@index([dealershipId, salesRepId])
+  @@map("sales_rep_commissions")
+}
+
+model StaffMember {
+  id           String     @id @default(uuid()) @db.Uuid
+  dealershipId String     @db.Uuid
+  dealership   Dealership @relation(fields: [dealershipId], references: [id])
+  fullName     String
+  email        String?
+  phone        String?
+  title        String?
+  payType      String     @default("salary")
+  payRate      Decimal    @default(0) @db.Decimal(12, 2)
+  hireDate     DateTime?  @db.Date
+  payMethod    String?
+  payDocUrl    String?    @db.Text
+  payFrequency String?    @db.VarChar(20)
+  payDay       Int?
+  payAnchor    DateTime?  @db.Date
+  workDays     Json?
+  hoursPerDay  Decimal?   @db.Decimal(6, 2)
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  deletedAt    DateTime?
+
+  payoutItems PayrollPayoutItem[]
+
+  @@index([dealershipId])
+  @@map("staff_members")
+}
+
+model PayrollRun {
+  id           String           @id @default(uuid()) @db.Uuid
+  dealershipId String           @db.Uuid
+  dealership   Dealership       @relation(fields: [dealershipId], references: [id])
+  periodStart  DateTime         @db.Date
+  periodEnd    DateTime         @db.Date
+  status       PayrollRunStatus @default(draft)
+  totalAmount  Decimal          @default(0) @db.Decimal(12, 2)
+  notes        String?
+  processedAt  DateTime?
+  createdById  String?          @db.Uuid
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  items PayrollPayoutItem[]
+
+  @@index([dealershipId, periodStart])
+  @@map("payroll_runs")
+}
+
+model PayrollPayoutItem {
+  id            String       @id @default(uuid()) @db.Uuid
+  payrollRunId  String       @db.Uuid
+  payrollRun    PayrollRun   @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  staffMemberId String?      @db.Uuid
+  staffMember   StaffMember? @relation(fields: [staffMemberId], references: [id])
+  salesRepId    String?      @db.Uuid
+  description   String
+  amount        Decimal      @db.Decimal(12, 2)
+  proofPath     String?
+  createdAt     DateTime     @default(now())
+
+  @@index([payrollRunId])
+  @@map("payroll_payout_items")
+}
+
+// ??? Tax ??????????????????????????????????????????????????????????????????????
+
+model DealershipTaxSettings {
+  id              String              @id @default(uuid()) @db.Uuid
+  dealershipId    String              @unique @db.Uuid
+  dealership      Dealership          @relation(fields: [dealershipId], references: [id], onDelete: Cascade)
+  state           String?
+  filingFrequency TaxFilingFrequency  @default(quarterly)
+  reminderDays    Int                 @default(14)
+  nextDueDate     DateTime?           @db.Date
+  notes           String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@map("dealership_tax_settings")
+}
+
+model TaxFilingPeriod {
+  id           String          @id @default(uuid()) @db.Uuid
+  dealershipId String          @db.Uuid
+  dealership   Dealership      @relation(fields: [dealershipId], references: [id], onDelete: Cascade)
+  name         String
+  startDate    DateTime        @db.Date
+  endDate      DateTime        @db.Date
+  dueDate      DateTime        @db.Date
+  status       TaxPeriodStatus @default(open)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  documents TaxFilingDocument[]
+  deals     FilingPeriodDeal[]
+
+  @@index([dealershipId, status])
+  @@map("tax_filing_periods")
+}
+
+model FilingPeriodDeal {
+  id             String          @id @default(uuid()) @db.Uuid
+  filingPeriodId String          @db.Uuid
+  filingPeriod   TaxFilingPeriod @relation(fields: [filingPeriodId], references: [id], onDelete: Cascade)
+  dealJacketId   String          @db.Uuid
+  dealJacket     DealJacket      @relation(fields: [dealJacketId], references: [id], onDelete: Cascade)
+  createdAt      DateTime        @default(now())
+
+  @@unique([filingPeriodId, dealJacketId])
+  @@map("filing_period_deals")
+}
+
+model TaxFilingDocument {
+  id             String          @id @default(uuid()) @db.Uuid
+  filingPeriodId String          @db.Uuid
+  filingPeriod   TaxFilingPeriod @relation(fields: [filingPeriodId], references: [id], onDelete: Cascade)
+  fileName       String
+  filePath       String
+  uploadedAt     DateTime        @default(now())
+
+  @@index([filingPeriodId])
+  @@map("tax_filing_documents")
+}
+
+// ??? CPA ??????????????????????????????????????????????????????????????????????
+
+model CpaNote {
+  id           String         @id @default(uuid()) @db.Uuid
+  dealershipId String         @db.Uuid
+  dealership   Dealership     @relation(fields: [dealershipId], references: [id])
+  title        String
+  description  String
+  category     String         @default("General")
+  priority     CpaNotePriority @default(MEDIUM)
+  status       CpaNoteStatus  @default(OPEN)
+  createdById  String?        @db.Uuid
+  createdBy    User?          @relation("CpaNoteCreatedBy", fields: [createdById], references: [id])
+  assignedToId String?        @db.Uuid
+  assignedTo   User?          @relation("CpaNoteAssignedTo", fields: [assignedToId], references: [id])
+  vehicleId    String?        @db.Uuid
+  stockNumber  String?
+  isArchived   Boolean        @default(false)
+  resolvedAt   DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  comments    CpaNoteComment[]
+  attachments CpaNoteAttachment[]
+
+  @@index([dealershipId, status])
+  @@map("cpa_notes")
+}
+
+model CpaNoteComment {
+  id        String   @id @default(uuid()) @db.Uuid
+  noteId    String   @db.Uuid
+  note      CpaNote  @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  userId    String?  @db.Uuid
+  user      User?    @relation(fields: [userId], references: [id])
+  comment   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([noteId])
+  @@map("cpa_note_comments")
+}
+
+model CpaNoteAttachment {
+  id         String   @id @default(uuid()) @db.Uuid
+  noteId     String   @db.Uuid
+  note       CpaNote  @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  uploadedBy String?  @db.Uuid
+  fileName   String
+  fileUrl    String
+  fileSize   Int?
+  mimeType   String?
+  createdAt  DateTime @default(now())
+
+  @@index([noteId])
+  @@map("cpa_note_attachments")
+}
+
+// ??? Calendar / Messages / Notifications / Audit / Files ??????????????????????
+
+model CalendarEvent {
+  id           String            @id @default(uuid()) @db.Uuid
+  dealershipId String            @db.Uuid
+  dealership   Dealership        @relation(fields: [dealershipId], references: [id])
+  eventDate    DateTime          @db.Date
+  eventTime    String?
+  title        String
+  eventType    CalendarEventType @default(task)
+  description  String?
+  sourceModule String?
+  sourceId     String?           @db.Uuid
+  createdById  String?           @db.Uuid
+  createdBy    User?             @relation(fields: [createdById], references: [id])
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  deletedAt    DateTime?
+
+  @@index([dealershipId, eventDate])
+  @@map("calendar_events")
+}
+
+model CalendarDayNote {
+  id           String     @id @default(uuid()) @db.Uuid
+  dealershipId String     @db.Uuid
+  dealership   Dealership @relation(fields: [dealershipId], references: [id])
+  noteDate     DateTime   @db.Date
+  body         String
+  updatedById  String?    @db.Uuid
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([dealershipId, noteDate])
+  @@map("calendar_day_notes")
+}
+
+model DashboardNote {
+  id           String     @id @default(uuid()) @db.Uuid
+  dealershipId String     @db.Uuid
+  dealership   Dealership @relation(fields: [dealershipId], references: [id], onDelete: Cascade)
+  text         String     @db.Text
+  sortOrder    Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([dealershipId])
+  @@map("dashboard_notes")
+}
+
+model Conversation {
+  id              String     @id @default(uuid()) @db.Uuid
+  dealershipId    String     @db.Uuid
+  dealership      Dealership @relation(fields: [dealershipId], references: [id], onDelete: Cascade)
+  type            String     @default("DIRECT")
+  name            String?
+  avatarUrl       String?
+  isSystem        Boolean    @default(false)
+  isArchived      Boolean    @default(false)
+  lastMessageAt   DateTime?
+  lastMessageText String?
+  createdById     String?    @db.Uuid
+  createdBy       User?      @relation("ConversationCreator", fields: [createdById], references: [id])
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  members  ConversationMember[]
+  messages Message[]
+  sessions ConversationSession[]
+  notificationQueue NotificationQueue[]
+  typingStatuses TypingStatus[]
+
+  @@index([dealershipId, updatedAt])
+  @@index([dealershipId, isSystem])
+  @@map("conversations")
+}
+
+model ConversationMember {
+  id             String       @id @default(uuid()) @db.Uuid
+  conversationId String       @db.Uuid
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String       @db.Uuid
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String       @default("MEMBER")
+  joinedAt       DateTime     @default(now())
+  leftAt         DateTime?
+  lastReadAt     DateTime?
+  isMuted        Boolean      @default(false)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@map("conversation_members")
+}
+
+model Message {
+  id             String       @id @default(uuid()) @db.Uuid
+  conversationId String       @db.Uuid
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String       @db.Uuid
+  sender         User         @relation(fields: [senderId], references: [id])
+  messageText    String
+  metadata       Json?
+  replyToId      String?      @db.Uuid
+  replyTo        Message?     @relation("MessageReply", fields: [replyToId], references: [id])
+  replies        Message[]    @relation("MessageReply")
+  reads      MessageRead[]
+  reactions  MessageReaction[]
+  editedAt       DateTime?
+  deletedAt      DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+  @@index([messageText])
+  @@map("messages")
+}
+
+model MessageRead {
+  id        String   @id @default(uuid()) @db.Uuid
+  messageId String   @db.Uuid
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  readAt    DateTime @default(now())
+
+  @@unique([messageId, userId])
+  @@index([userId])
+  @@map("message_reads")
+}
+
+model MessageReaction {
+  id        String   @id @default(uuid()) @db.Uuid
+  messageId String   @db.Uuid
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emoji     String
+  createdAt DateTime @default(now())
+
+  @@unique([messageId, userId, emoji])
+  @@map("message_reactions")
+}
+
+model ConversationSession {
+  id              String       @id @default(uuid()) @db.Uuid
+  userId          String       @db.Uuid
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationId  String       @db.Uuid
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  lastOpenedAt    DateTime?
+  lastActiveAt    DateTime?
+  draftMessage    String?
+  scrollPosition  Int?
+
+  @@unique([userId, conversationId])
+  @@map("conversation_sessions")
+}
+
+model UserPresence {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @unique @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status     String   @default("OFFLINE")
+  isOnline   Boolean  @default(false)
+  lastSeenAt DateTime?
+  updatedAt  DateTime @updatedAt
+
+  @@map("user_presence")
+}
+
+model TypingStatus {
+  id             String       @id @default(uuid()) @db.Uuid
+  userId         String       @db.Uuid
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationId String       @db.Uuid
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  isTyping       Boolean      @default(false)
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([userId, conversationId])
+  @@map("typing_status")
+}
+
+model NotificationQueue {
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @db.Uuid
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationId String       @db.Uuid
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  type           String
+  payload        Json?
+  isProcessed    Boolean   @default(false)
+  processedAt    DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([userId, isProcessed])
+  @@index([createdAt])
+  @@map("notification_queue")
+}
+
+model Notification {
+  id           String     @id @default(uuid()) @db.Uuid
+  dealershipId String?    @db.Uuid
+  dealership   Dealership? @relation(fields: [dealershipId], references: [id])
+  userId       String     @db.Uuid
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title        String
+  body         String?
+  type         String     @default("info")
+  link         String?
+  isRead       Boolean    @default(false)
+  readAt       DateTime?
+  createdAt    DateTime   @default(now())
+
+  @@index([userId, isRead, createdAt])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id           String      @id @default(uuid()) @db.Uuid
+  dealershipId String?     @db.Uuid
+  dealership   Dealership? @relation(fields: [dealershipId], references: [id])
+  changedById  String?     @db.Uuid
+  changedBy    User?       @relation(fields: [changedById], references: [id])
+  entityType   String
+  entityId     String
+  action       String
+  oldValues    Json?
+  newValues    Json?
+  ipAddress    String?
+  createdAt    DateTime    @default(now())
+
+  @@index([dealershipId, createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+model FileObject {
+  id             String      @id @default(uuid()) @db.Uuid
+  dealershipId   String?     @db.Uuid
+  dealership     Dealership? @relation(fields: [dealershipId], references: [id])
+  bucket         String
+  storagePath    String
+  originalName   String
+  mimeType       String
+  fileSize       BigInt
+  sourceEntity   String?
+  sourceEntityId String?     @db.Uuid
+  uploadedById   String?     @db.Uuid
+  uploadedBy     User?       @relation(fields: [uploadedById], references: [id])
+  uploadedAt     DateTime    @default(now())
+  deletedAt      DateTime?
+
+  @@index([dealershipId, sourceEntity, sourceEntityId])
+  @@map("files")
+}
+
+// ??? Support / Client CRM ?????????????????????????????????????????????????????
+
+model SupportMessage {
+  id           String     @id @default(uuid()) @db.Uuid
+  dealershipId String     @db.Uuid
+  dealership   Dealership @relation(fields: [dealershipId], references: [id], onDelete: Cascade)
+  userId       String?    @db.Uuid
+  user         User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  name         String
+  role         String
+  topic        String
+  subject      String
+  priority     String
+  message      String     @db.Text
+  status       String     @default("new")
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([dealershipId])
+  @@index([status])
+  @@map("support_messages")
+}
+
+

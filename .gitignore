@@ -3,6 +3,7 @@ node_modules
 .env.local
 .env.*.local
 uploads
+.tokens/
 *.log
 coverage
 .DS_Store

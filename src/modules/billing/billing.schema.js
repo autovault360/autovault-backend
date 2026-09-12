@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const billingCheckoutSchema = z.object({
-  action: z.enum(["upgrade", "pay_due"]),
+  action: z.enum(["upgrade", "pay_due", "start_subscription"]),
   plan: z
     .enum(["wholesaler", "independent_dealer", "growing_dealership"])
     .optional()

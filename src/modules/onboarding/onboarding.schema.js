@@ -9,6 +9,7 @@ export const upsertRegistrationSchema = z
     dealership: z.string().trim().min(2).max(150).optional(),
     dealershipName: z.string().trim().min(2).max(150).optional(),
     zipCode: z.string().trim().min(2).max(20),
+    eventId: z.string().trim().min(8).max(128).optional(),
     state: z
       .string()
       .trim()
@@ -32,6 +33,7 @@ export const upsertRegistrationSchema = z
     dealershipName: (data.dealershipName || data.dealership || "").trim(),
     zipCode: data.zipCode,
     state: data.state,
+    eventId: data.eventId,
   }));
 
 export const checkoutSchema = z.object({

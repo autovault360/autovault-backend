@@ -22,6 +22,7 @@ import {
 } from "../../common/errors.js";
 import { writeAuditLog } from "../../common/audit.js";
 import { env } from "../../config/env.js";
+import { trialPayload } from "../../utils/trial.js";
 
 function allowedPortalForUser(user, dealership) {
   return portalForRole(user.role);
@@ -53,6 +54,7 @@ export function serializeUser(user, dealership = null) {
     termsDealership: user.termsDealership || null,
     termsSignature: user.termsSignature || null,
     termsAcceptedAt: user.termsAcceptedAt || null,
+    ...trialPayload(dealership),
   };
 }
 
@@ -144,8 +146,17 @@ export async function login({ email, password }, ipAddress) {
   if (!user.dealership || user.dealership.deletedAt) {
     throw forbidden("No active dealership on this account.");
   }
-  if (user.dealership.status !== "active") {
-    throw forbidden("Your plan is not active yet. Complete checkout first.");
+  if (user.dealership.status === "canceled") {
+    throw forbidden("This account has been canceled.");
+  }
+  if (user.dealership.status === "suspended") {
+    throw forbidden("This account is suspended. Contact support.");
+  }
+  if (
+    user.dealership.status !== "active" &&
+    user.dealership.status !== "payment_failed"
+  ) {
+    throw forbidden("Your account is not ready yet. Check your email to finish signup.");
   }
 
   // Role determines the portal — one shared /login for all dealership users.

@@ -35,13 +35,6 @@ const inlineImageUrlCache = new Map();
 
 const DATA_IMAGE_RE = /data:image\/([a-zA-Z]+);base64,([A-Za-z0-9+/=\s]+)/g;
 
-/**
- * Brevo does not support CID/inline images for transactional emails, and
- * webmail clients (Gmail) strip `data:` URIs. So inline base64 images are
- * uploaded to Cloudflare R2 once (deduplicated by content hash, cached in
- * memory) and referenced by their public URL in the HTML. If R2 is not
- * configured the data URIs are left untouched.
- */
 async function hostInlineImages(html) {
   const unique = new Map();
   const matcher = new RegExp(DATA_IMAGE_RE.source, "g");
@@ -110,10 +103,28 @@ function formatBrevoError(err) {
   };
 }
 
+function htmlToText(html) {
+  return String(html || "")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&rsquo;/g, "'")
+    .replace(/&mdash;/g, "—")
+    .replace(/&amp;/g, "&")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
 export async function sendEmail({
   to,
   subject,
   html,
+  text,
   templateName,
   templateData,
   cc,
@@ -145,6 +156,7 @@ export async function sendEmail({
   const payload = {
     subject,
     htmlContent: hostedHtml,
+    textContent: text || htmlToText(hostedHtml),
     sender: getSender(sender),
     to: toRecipients,
   };

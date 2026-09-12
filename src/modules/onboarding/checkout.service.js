@@ -3,11 +3,7 @@ import { stripe } from "../../lib/stripe.js";
 import { env } from "../../config/env.js";
 import { createCompletionToken, hashToken } from "../../utils/tokens.js";
 import { conflict, notFound } from "../../common/errors.js";
-import {
-  PLAN_TO_PRICE_ENV,
-  PLAN_MONTHLY_FEE,
-  SUBSCRIPTION_TRIAL_DAYS,
-} from "../../utils/plans.js";
+import { PLAN_TO_PRICE_ENV, PLAN_MONTHLY_FEE } from "../../utils/plans.js";
 
 const FRONTEND_BASE = env.FRONTEND_URL.replace(/\/+$/, "");
 
@@ -16,6 +12,9 @@ function priceIdForPlan(plan) {
   return envKey ? env[envKey] : "";
 }
 
+/**
+ * Paid conversion checkout (no Stripe trial). Signup no longer uses this.
+ */
 export async function createCheckout({ registrationId, plan }) {
   if (!stripe) {
     throw new Error("Stripe is not configured.");
@@ -25,8 +24,8 @@ export async function createCheckout({ registrationId, plan }) {
     where: { id: registrationId },
   });
   if (!registration) throw notFound("Registration not found.");
-  if (registration.status === "active") {
-    throw conflict("Registration is already active.");
+  if (registration.stripeSubscriptionId) {
+    throw conflict("This account already has a subscription. Please log in.");
   }
 
   const priceId = priceIdForPlan(plan);
@@ -59,6 +58,12 @@ export async function createCheckout({ registrationId, plan }) {
       where: { id: registration.id },
       data: { stripeCustomerId: customer.id },
     });
+    if (registration.dealershipId) {
+      await prisma.dealership.update({
+        where: { id: registration.dealershipId },
+        data: { stripeCustomerId: customer.id },
+      });
+    }
   }
 
   const token = createCompletionToken({
@@ -72,15 +77,18 @@ export async function createCheckout({ registrationId, plan }) {
     customer: customerId,
     line_items: [{ price: priceId, quantity: 1 }],
     subscription_data: {
-      trial_period_days: SUBSCRIPTION_TRIAL_DAYS,
       metadata: {
         registrationId: registration.id,
+        dealershipId: registration.dealershipId || "",
         plan,
+        action: "start_subscription",
       },
     },
     metadata: {
       registrationId: registration.id,
+      dealershipId: registration.dealershipId || "",
       plan,
+      action: "start_subscription",
       completionToken: token,
     },
     success_url: `${FRONTEND_BASE}/thank-you?token=${encodeURIComponent(token)}&email=${encodeURIComponent(registration.email || "")}`,
@@ -91,7 +99,6 @@ export async function createCheckout({ registrationId, plan }) {
     where: { id: registration.id },
     data: {
       plan,
-      status: "checkout_started",
       monthlyFee: PLAN_MONTHLY_FEE[plan] || null,
       stripeCheckoutSessionId: session.id,
       completionTokenHash: hashToken(token),

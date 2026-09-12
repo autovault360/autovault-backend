@@ -8,6 +8,7 @@ import {
 import { notFound, forbidden, conflict } from "../../common/errors.js";
 import { writeAuditLog } from "../../common/audit.js";
 import { toApiPaymentStatus } from "../../utils/plans.js";
+import { addTrialDays, trialPayload } from "../../utils/trial.js";
 
 async function uniqueSlug(baseName) {
   let slug = slugify(baseName) || "dealership";
@@ -37,6 +38,7 @@ function serializeDealership(d) {
     paymentStatus: toApiPaymentStatus(d.paymentStatus),
     monthlyFee: d.monthlyFee != null ? Number(d.monthlyFee) : null,
     kpiColors: d.kpiColors && typeof d.kpiColors === "object" ? d.kpiColors : {},
+    ...trialPayload(d),
     createdAt: d.createdAt,
     updatedAt: d.updatedAt,
   };
@@ -158,10 +160,15 @@ export async function activateFromRegistration(registration, tx = prisma) {
         state: registration.state,
         plan: registration.plan,
         status: "active",
-        paymentStatus: registration.paymentStatus,
+        paymentStatus: registration.stripeSubscriptionId
+          ? registration.paymentStatus
+          : "pending",
         monthlyFee: registration.monthlyFee,
         stripeCustomerId: registration.stripeCustomerId,
         stripeSubscriptionId: registration.stripeSubscriptionId,
+        trialEndsAt: registration.stripeSubscriptionId
+          ? null
+          : addTrialDays(),
       },
     });
 

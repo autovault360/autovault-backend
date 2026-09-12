@@ -1,11 +1,87 @@
 import { prisma } from "../../lib/prisma.js";
 import { conflict, notFound, validationError } from "../../common/errors.js";
-import { serializeRegistration } from "../../utils/plans.js";
-import { hashToken, verifyCompletionToken } from "../../utils/tokens.js";
+import { serializeRegistration, PLAN_MONTHLY_FEE } from "../../utils/plans.js";
+import {
+  createCompletionToken,
+  hashToken,
+  verifyCompletionToken,
+} from "../../utils/tokens.js";
 import { stripe } from "../../lib/stripe.js";
 import { loginPathForPortal, portalForPlan } from "../../common/auth-utils.js";
 import { logger } from "../../common/logger.js";
 import { sendWelcomeIfNeeded } from "./welcome-email.js";
+import { addTrialDays } from "../../utils/trial.js";
+
+const DEFAULT_PLAN = "growing_dealership";
+
+async function issueCompletionToken(registration) {
+  const token = createCompletionToken({
+    registrationId: registration.id,
+    plan: registration.plan || DEFAULT_PLAN,
+    email: registration.email,
+  });
+  await prisma.registration.update({
+    where: { id: registration.id },
+    data: {
+      completionTokenHash: hashToken(token),
+      completionTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    },
+  });
+  return token;
+}
+
+async function activateNoCardTrial(registration, { plan } = {}) {
+  const nextPlan = plan || registration.plan || DEFAULT_PLAN;
+  const monthlyFee = PLAN_MONTHLY_FEE[nextPlan] ?? registration.monthlyFee;
+
+  await prisma.registration.update({
+    where: { id: registration.id },
+    data: {
+      plan: nextPlan,
+      monthlyFee,
+      status: "active",
+      paymentStatus: registration.stripeSubscriptionId ? "on_time" : "pending",
+    },
+  });
+
+  let fresh = await prisma.registration.findUnique({
+    where: { id: registration.id },
+  });
+
+  try {
+    await sendWelcomeIfNeeded(fresh.id);
+  } catch (err) {
+    logger.error(
+      { err, registrationId: fresh.id },
+      "Welcome email failed during no-card trial activation",
+    );
+  }
+
+  fresh = await prisma.registration.findUnique({
+    where: { id: registration.id },
+  });
+
+  if (fresh?.dealershipId && !fresh.stripeSubscriptionId) {
+    const dealership = await prisma.dealership.findUnique({
+      where: { id: fresh.dealershipId },
+    });
+    if (dealership && !dealership.trialEndsAt && !dealership.stripeSubscriptionId) {
+      await prisma.dealership.update({
+        where: { id: dealership.id },
+        data: {
+          trialEndsAt: addTrialDays(),
+          paymentStatus: "pending",
+        },
+      });
+    }
+  }
+
+  const token = await issueCompletionToken(fresh);
+  fresh = await prisma.registration.findUnique({
+    where: { id: registration.id },
+  });
+  return { registration: fresh, completionToken: token };
+}
 
 function loginPathForPlan(plan) {
   return loginPathForPortal(portalForPlan(plan));
@@ -16,8 +92,8 @@ export async function upsertRegistration(data) {
     where: { email: data.email },
   });
 
-  if (existing?.status === "active") {
-    throw conflict("This email already has an active subscription.");
+  if (existing?.status === "active" && existing.dealershipId) {
+    throw conflict("This email already has an account. Please log in.");
   }
 
   if (existing) {
@@ -31,7 +107,15 @@ export async function upsertRegistration(data) {
         state: data.state,
       },
     });
-    return { registrationId: updated.id, status: updated.status, created: false };
+    const activated = await activateNoCardTrial(updated);
+    return {
+      registrationId: activated.registration.id,
+      status: activated.registration.status,
+      created: false,
+      completionToken: activated.completionToken,
+      loginPath: loginPathForPlan(activated.registration.plan),
+      loginEmail: activated.registration.email,
+    };
   }
 
   const created = await prisma.registration.create({
@@ -42,10 +126,22 @@ export async function upsertRegistration(data) {
       dealershipName: data.dealershipName,
       zipCode: data.zipCode,
       state: data.state,
+      plan: DEFAULT_PLAN,
+      monthlyFee: PLAN_MONTHLY_FEE[DEFAULT_PLAN],
+      status: "pending",
+      paymentStatus: "pending",
     },
   });
 
-  return { registrationId: created.id, status: created.status, created: true };
+  const activated = await activateNoCardTrial(created, { plan: DEFAULT_PLAN });
+  return {
+    registrationId: activated.registration.id,
+    status: activated.registration.status,
+    created: true,
+    completionToken: activated.completionToken,
+    loginPath: loginPathForPlan(activated.registration.plan),
+    loginEmail: activated.registration.email,
+  };
 }
 
 export async function completeRegistration(token) {
@@ -102,11 +198,16 @@ export async function completeRegistration(token) {
     }
   }
 
-  // Only activate + email after payment (status active), or if already active.
-  const current = await prisma.registration.findUnique({
+  let current = await prisma.registration.findUnique({
     where: { id: registration.id },
   });
-  if (current?.status === "active") {
+  if (current && current.status !== "active" && !current.dealershipId) {
+    await activateNoCardTrial(current);
+    current = await prisma.registration.findUnique({
+      where: { id: registration.id },
+    });
+  }
+  if (current?.status === "active" || current?.dealershipId) {
     try {
       await sendWelcomeIfNeeded(registration.id);
     } catch (err) {

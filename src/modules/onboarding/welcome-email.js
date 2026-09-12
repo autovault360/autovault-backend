@@ -84,9 +84,22 @@ export async function sendWelcomeIfNeeded(registrationId) {
     const base = env.FRONTEND_URL.replace(/\/+$/, "");
     const loginPath = loginPathForPortal(portalForPlan(reg.plan));
 
+    const loginUrl = `${base}${loginPath}`;
     await sendEmail({
       to: reg.email,
-      subject: "Your AutoVault plan is active",
+      subject: "Your AutoVault 25-day free trial is ready",
+      text: [
+        `Hi ${reg.name || "there"},`,
+        "",
+        "Your AutoVault 25-day free trial is ready. No credit card required.",
+        "",
+        `Login page: ${loginUrl}`,
+        `Email: ${reg.email}`,
+        `Temporary password: ${temporaryPassword}`,
+        "",
+        "Change the temporary password after you sign in.",
+        "If this was not you, ignore this email.",
+      ].join("\n"),
       html: subscriptionWelcomeEmail({
         name: reg.name,
         loginEmail: reg.email,
@@ -94,7 +107,7 @@ export async function sendWelcomeIfNeeded(registrationId) {
         dealership: reg.dealershipName,
         plan: PLAN_SLUG_TO_LABEL[reg.plan] || reg.plan,
         monthlyFee: reg.monthlyFee,
-        loginUrl: `${base}${loginPath}`,
+        loginUrl,
       }),
     });
 

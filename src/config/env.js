@@ -65,10 +65,15 @@ export const env = {
   SUPABASE_KEY: process.env.SUPABASE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtydmJ2endndWp1anlxc2Fwd3hyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NzY3MjYzOSwiZXhwIjoyMTAzMjQ4NjM5fQ.zIxcCD-zYC-hHPUyFDJL2Y3Etrn71k-qOUlrzJa0HLc",
 
 
-  // Meta (Facebook & Instagram) API Credentials
+  // Meta (Facebook & Instagram) API Credentials — social posting
   META_APP_ID: process.env.META_APP_ID || "",
   META_APP_SECRET: process.env.META_APP_SECRET || "",
   META_REDIRECT_URI: process.env.META_REDIRECT_URI || "https://api.autovault360.com/api/owner/socials/meta/callback",
+
+  // Meta Pixel + Conversions API — ads tracking (not the social posting app)
+  META_PIXEL_ID: process.env.META_PIXEL_ID || "2667115627038009",
+  META_CAPI_ACCESS_TOKEN: process.env.META_CAPI_ACCESS_TOKEN || "",
+  META_CAPI_TEST_EVENT_CODE: process.env.META_CAPI_TEST_EVENT_CODE || "",
 
   // X (Twitter) API v2 Credentials
   X_CLIENT_ID: process.env.X_CLIENT_ID || "MmpFMm11Y3NEbXZYcWxkeFVCbkY6MTpjaQ",

@@ -20,4 +20,5 @@ export const contactSchema = z.object({
   message: z.string().trim().max(4000).optional().or(z.literal("")),
   /** Honeypot — bots fill this; we silently accept without sending */
   website: z.string().max(200).optional().default(""),
+  eventId: z.string().trim().min(8).max(128).optional(),
 });

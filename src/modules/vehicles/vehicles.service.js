@@ -11,6 +11,7 @@ import {
   currentInventoryWhere,
 } from "./vehicle-status.js";
 import { mergeJsonFees } from "../../common/fees.js";
+import { isFirstVehicleForDealership } from "./first-vehicle.js";
 
 function toDecimal(value) {
   if (value == null) return 0;
@@ -323,6 +324,7 @@ export async function getVehicle(dealershipId, vehicleId) {
 }
 
 export async function createVehicle(dealershipId, data, createdById, ipAddress) {
+  const isFirstVehicle = await isFirstVehicleForDealership(dealershipId);
   const normalizedVin = (data.vin || "").toUpperCase().trim();
   const duplicate = await prisma.vehicle.findFirst({
     where: { dealershipId, vin: normalizedVin, deletedAt: null },
@@ -410,7 +412,7 @@ export async function createVehicle(dealershipId, data, createdById, ipAddress) 
     ipAddress,
   });
 
-  return serializeVehicle(updated);
+  return { vehicle: serializeVehicle(updated), isFirstVehicle };
 }
 
 const DEAL_SYNC_KEYS = [

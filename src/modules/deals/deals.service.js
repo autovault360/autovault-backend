@@ -15,6 +15,7 @@ import {
 } from "../jackets/jackets.service.js";
 import { nextPlaceholderVin, normalizeVin } from "../../common/vin.js";
 import { mergeJsonFees } from "../../common/fees.js";
+import { isFirstVehicleForDealership } from "../vehicles/first-vehicle.js";
 
 function serializeVehicle(v) {
   if (!v) return null;
@@ -483,6 +484,7 @@ export async function markSold(vehicleId, payload, ctx) {
  */
 export async function importPreviousSold(payload, ctx) {
   const { dealershipId, userId, role, plan } = ctx;
+  const isFirstVehicle = await isFirstVehicleForDealership(dealershipId);
   if (!["owner", "manager", "platform_owner"].includes(role)) {
     throw forbidden("Only managers can import previously sold vehicles.");
   }
@@ -808,6 +810,7 @@ export async function importPreviousSold(payload, ctx) {
     dealJacket: serializeDealJacket(jacket),
     hasDealJacket: true,
     vehicle: serializeVehicle(vehicleWithDeal),
+    isFirstVehicle,
   };
 }
 

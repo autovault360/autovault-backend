@@ -3,6 +3,7 @@ import * as expensesService from "./vehicle-expenses.service.js";
 import * as flooringService from "./flooring.service.js";
 import { tenantId } from "../../common/auth-middleware.js";
 import { forbidden } from "../../common/errors.js";
+import { emitFirstVehicleConversion } from "../../lib/meta-capi.js";
 
 function clientIp(req) {
   return req.ip || req.headers["x-forwarded-for"] || null;
@@ -37,13 +38,14 @@ export async function getVehicle(req, res) {
 }
 
 export async function createVehicle(req, res) {
-  const vehicle = await vehiclesService.createVehicle(
+  const { vehicle, isFirstVehicle } = await vehiclesService.createVehicle(
     dealershipId(req),
     req.body,
     req.auth.userId,
     clientIp(req),
   );
-  return res.status(201).json({ vehicle });
+  const meta = emitFirstVehicleConversion(req, { vehicle, isFirstVehicle });
+  return res.status(201).json({ vehicle, ...meta });
 }
 
 export async function updateVehicle(req, res) {

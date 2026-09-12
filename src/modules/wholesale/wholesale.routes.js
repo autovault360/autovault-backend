@@ -28,6 +28,7 @@ import {
   upsertDayNoteSchema,
 } from "./wholesale.schema.js";
 import * as wholesaleService from "./wholesale.service.js";
+import { emitFirstVehicleConversion } from "../../lib/meta-capi.js";
 
 const WHOLESALE_ROLES = ["wholesale_dealer", "platform_owner"];
 
@@ -74,12 +75,13 @@ router.post(
   "/vehicles",
   validateBody(createVehicleSchema),
   asyncHandler(async (req, res) => {
-    const vehicle = await wholesaleService.createVehicle(
+    const { vehicle, isFirstVehicle } = await wholesaleService.createVehicle(
       req.auth.dealershipId,
       req.body,
       req.auth.userId,
     );
-    return res.status(201).json({ vehicle });
+    const meta = emitFirstVehicleConversion(req, { vehicle, isFirstVehicle });
+    return res.status(201).json({ vehicle, ...meta });
   }),
 );
 

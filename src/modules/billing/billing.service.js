@@ -13,6 +13,7 @@ import {
   toApiPaymentStatus,
 } from "../../utils/plans.js";
 import { dashboardPathForPortal, portalForPlan } from "../../common/auth-utils.js";
+import { trialPayload } from "../../utils/trial.js";
 
 const FRONTEND_BASE = env.FRONTEND_URL.replace(/\/+$/, "");
 
@@ -328,11 +329,30 @@ function serializePayment(p) {
 export async function getBilling(dealershipId) {
   let dealership = await loadDealership(dealershipId);
   if (!dealership.stripeCustomerId) {
+    const priceInfo = dealership.plan
+      ? await getStripePriceAmount(dealership.plan)
+      : { amount: toNum(dealership.monthlyFee) || 99.99, currency: "usd", interval: "month" };
+    const trial = trialPayload(dealership);
     return {
       linked: false,
       plan: dealership.plan,
       planLabel: PLAN_SLUG_TO_LABEL[dealership.plan] || null,
-      message: "Billing not linked; contact support.",
+      planFeat: PLAN_MARKETING[dealership.plan] || null,
+      amount: priceInfo.amount,
+      currency: priceInfo.currency,
+      monthlyFee: toNum(dealership.monthlyFee) || priceInfo.amount,
+      cycle: "Monthly",
+      status: dealership.status,
+      paymentStatus: toApiPaymentStatus(dealership.paymentStatus),
+      dueDate: dealership.trialEndsAt
+        ? dealership.trialEndsAt.toISOString().slice(0, 10)
+        : null,
+      ...trial,
+      message: trial.inTrial
+        ? "Your free trial is active. No card is required until it ends."
+        : trial.billingRequired
+          ? "Your trial has ended. Please add a payment method to continue."
+          : "Add a payment method to start your subscription.",
     };
   }
 
@@ -412,6 +432,7 @@ export async function getBilling(dealershipId) {
           exp,
         }
       : null,
+    ...trialPayload(dealership),
   };
 }
 
@@ -453,13 +474,81 @@ export async function listPlans(dealershipId) {
   return { plans, currentPlan: current };
 }
 
+async function ensureStripeCustomer(dealership) {
+  if (!stripe) throw new AppError("Stripe is not configured.", 503, "STRIPE_UNAVAILABLE");
+  let customerId = dealership.stripeCustomerId || "";
+  if (customerId) {
+    try {
+      const existing = await stripe.customers.retrieve(customerId);
+      if (existing?.deleted) customerId = "";
+    } catch (err) {
+      const missing =
+        err?.code === "resource_missing" ||
+        err?.statusCode === 404 ||
+        /no such customer/i.test(String(err?.message || ""));
+      if (!missing) throw err;
+      customerId = "";
+    }
+  }
+  if (!customerId) {
+    const customer = await stripe.customers.create({
+      email: dealership.email || undefined,
+      name: dealership.name,
+      metadata: { dealershipId: dealership.id },
+    });
+    customerId = customer.id;
+    await prisma.dealership.update({
+      where: { id: dealership.id },
+      data: { stripeCustomerId: customerId },
+    });
+    await prisma.registration.updateMany({
+      where: { dealershipId: dealership.id },
+      data: { stripeCustomerId: customerId },
+    });
+  }
+  return customerId;
+}
+
 export async function createBillingCheckout(dealershipId, { action, plan }) {
   if (!stripe) throw new AppError("Stripe is not configured.", 503, "STRIPE_UNAVAILABLE");
   const dealership = await loadDealership(dealershipId);
+  const returns = billingReturnUrls(dealership);
+
+  if (action === "start_subscription") {
+    if (dealership.stripeSubscriptionId && dealership.status === "active") {
+      throw conflict("You already have an active subscription.");
+    }
+    const nextPlan = plan || dealership.plan || "growing_dealership";
+    const priceId = priceIdForPlan(nextPlan);
+    if (!priceId || !priceId.startsWith("price_")) {
+      throw new AppError(`Missing Stripe price for plan: ${nextPlan}`, 500);
+    }
+    const customerId = await ensureStripeCustomer(dealership);
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      customer: customerId,
+      line_items: [{ price: priceId, quantity: 1 }],
+      subscription_data: {
+        metadata: {
+          dealershipId,
+          plan: nextPlan,
+          action: "start_subscription",
+        },
+      },
+      metadata: {
+        dealershipId,
+        plan: nextPlan,
+        action: "start_subscription",
+      },
+      success_url: returns.success,
+      cancel_url: returns.cancel,
+    });
+    return { url: session.url };
+  }
+
   if (!dealership.stripeCustomerId) {
     throw conflict("Billing not linked; contact support.");
   }
-  const returns = billingReturnUrls(dealership);
 
   if (action === "pay_due") {
     const open = await stripe.invoices.list({

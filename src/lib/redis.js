@@ -59,7 +59,12 @@ export function getRedis() {
     const client = new IORedis(env.REDIS_URL, {
       maxRetriesPerRequest: 2,
       enableReadyCheck: true,
+      enableOfflineQueue: false,
       lazyConnect: false,
+      retryStrategy(times) {
+        if (times > 8) return null;
+        return Math.min(times * 200, 2000);
+      },
     });
     client.on("error", (err) => {
       logger.warn({ err: err.message }, "[redis] connection error");
@@ -85,21 +90,29 @@ export function getRedis() {
   if (!warnedMissing) {
     warnedMissing = true;
     logger.warn(
-      "[redis] REDIS_URL / UPSTASH_* missing ó Redis features disabled",
+      "[redis] REDIS_URL / UPSTASH_* missing ù Redis features disabled",
     );
   }
   return null;
 }
 
-/** Simple job enqueue using a Redis list. */
+/** Simple job enqueue using a Redis list. Returns false if Redis is down. */
 export async function enqueueJob(queueName, payload) {
   const client = getRedis();
   if (!client) return false;
-  await client.lpush(
-    `queue:${queueName}`,
-    JSON.stringify({ ...payload, enqueuedAt: new Date().toISOString() }),
-  );
-  return true;
+  try {
+    await client.lpush(
+      `queue:${queueName}`,
+      JSON.stringify({ ...payload, enqueuedAt: new Date().toISOString() }),
+    );
+    return true;
+  } catch (err) {
+    logger.warn(
+      { err: err?.message || err, queueName },
+      "[redis] enqueue failed ó caller should send directly",
+    );
+    return false;
+  }
 }
 
 export async function dequeueJob(queueName) {

@@ -429,6 +429,75 @@ export function billingDueNoticeEmail(data) {
   return renderTemplate("billingDueNotice", data);
 }
 
+registerTemplate("trialEndingSoon", ({
+  name,
+  dealership,
+  planLabel,
+  amount,
+  dueDate,
+  dashboardUrl,
+  daysLeft,
+}) =>
+  billingEmail({
+    title:
+      daysLeft === 1
+        ? "Your free trial ends tomorrow"
+        : `Your free trial ends in ${daysLeft} days`,
+    preheader: `Add a card to keep using AutoVault after your 25-day trial.`,
+    eyebrow: "Free trial",
+    headline:
+      daysLeft === 1
+        ? "Your free trial ends tomorrow"
+        : `Your free trial ends in ${daysLeft} days`,
+    introHtml: `Hi ${name || "there"}, your 25-day free trial for <b class="av-text" style="color:#0B0B14;">${dash(dealership)}</b> is almost over.`,
+    noteHtml:
+      "No card is on file, so we cannot charge you automatically. Add a payment method in Payment Settings to keep your inventory and numbers after the trial.",
+    footerNote:
+      "You&rsquo;re receiving this email because you started a free AutoVault trial. &copy; 2026 AutoVault.",
+    name,
+    dealership,
+    planLabel,
+    amount,
+    dueDate,
+    dashboardUrl,
+  }),
+);
+
+registerTemplate("trialEnded", ({
+  name,
+  dealership,
+  planLabel,
+  amount,
+  dueDate,
+  dashboardUrl,
+}) =>
+  billingEmail({
+    title: "Your free trial has ended",
+    preheader: `Please add a payment method to continue using AutoVault.`,
+    eyebrow: "Trial ended",
+    headline: "Your free trial has ended",
+    introHtml: `Hi ${name || "there"}, the 25-day free trial for <b class="av-text" style="color:#0B0B14;">${dash(dealership)}</b> is over.`,
+    noteHtml:
+      "Your data is still here. Please add a payment method in Payment Settings to subscribe and keep using AutoVault.",
+    footerNote:
+      "You&rsquo;re receiving this email because you started a free AutoVault trial. &copy; 2026 AutoVault.",
+    name,
+    dealership,
+    planLabel,
+    amount,
+    dueDate,
+    dashboardUrl,
+  }),
+);
+
+export function trialEndingSoonEmail(data) {
+  return renderTemplate("trialEndingSoon", data);
+}
+
+export function trialEndedEmail(data) {
+  return renderTemplate("trialEnded", data);
+}
+
 export function taxReminderEmail(data) {
   return renderTemplate("taxReminder", data);
 }

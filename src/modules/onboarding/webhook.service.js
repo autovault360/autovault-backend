@@ -92,6 +92,69 @@ async function handleUpgradeCheckout(session) {
   await syncCardFromStripe(dealership);
 }
 
+async function handleStartSubscriptionCheckout(session) {
+  const dealershipId = session.metadata?.dealershipId;
+  const registrationId = session.metadata?.registrationId;
+  const plan = session.metadata?.plan;
+  const newSubId =
+    typeof session.subscription === "string"
+      ? session.subscription
+      : session.subscription?.id;
+  const customerId = String(session.customer || "");
+
+  const priceInfo = plan ? await getStripePriceAmount(plan) : { amount: null };
+  const data = {
+    status: "active",
+    paymentStatus: "on_time",
+    stripeCustomerId: customerId || undefined,
+    stripeSubscriptionId: newSubId || undefined,
+    ...(plan ? { plan } : {}),
+    ...(priceInfo.amount != null
+      ? { monthlyFee: priceInfo.amount }
+      : {}),
+  };
+
+  let dealership = null;
+  if (dealershipId) {
+    dealership = await prisma.dealership.update({
+      where: { id: dealershipId },
+      data,
+    });
+  } else if (registrationId) {
+    const reg = await prisma.registration.findUnique({
+      where: { id: registrationId },
+    });
+    if (reg?.dealershipId) {
+      dealership = await prisma.dealership.update({
+        where: { id: reg.dealershipId },
+        data,
+      });
+    }
+  }
+
+  const registrationWhere = registrationId
+    ? { id: registrationId }
+    : dealership
+      ? { dealershipId: dealership.id }
+      : null;
+  if (registrationWhere) {
+    await prisma.registration.updateMany({
+      where: registrationWhere,
+      data: {
+        status: "active",
+        paymentStatus: "on_time",
+        stripeCustomerId: customerId || undefined,
+        stripeSubscriptionId: newSubId || undefined,
+        stripeCheckoutSessionId: session.id,
+        ...(plan ? { plan } : {}),
+        ...(priceInfo.amount != null ? { monthlyFee: priceInfo.amount } : {}),
+      },
+    });
+  }
+
+  if (dealership) await syncCardFromStripe(dealership);
+}
+
 async function handlePayDueCheckout(session) {
   const dealershipId = session.metadata?.dealershipId;
   if (!dealershipId) return;
@@ -180,20 +243,12 @@ export async function handleStripeWebhook(rawBody, signature) {
       await handleUpgradeCheckout(session);
     } else if (action === "pay_due") {
       await handlePayDueCheckout(session);
+    } else if (action === "start_subscription") {
+      await handleStartSubscriptionCheckout(session);
     } else {
       const registrationId = session?.metadata?.registrationId;
       if (registrationId) {
-        await prisma.registration.updateMany({
-          where: { id: registrationId },
-          data: {
-            status: "active",
-            paymentStatus: "on_time",
-            stripeCheckoutSessionId: session.id,
-            stripeCustomerId: String(session.customer || ""),
-            plan: session.metadata?.plan || undefined,
-          },
-        });
-        await sendWelcomeIfNeeded(registrationId);
+        await handleStartSubscriptionCheckout(session);
       }
     }
   }

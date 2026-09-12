@@ -6,6 +6,7 @@ import rateLimit from "express-rate-limit";
 import { env, assertRequiredEnv } from "./config/env.js";
 import { connectDb } from "./lib/prisma.js";
 import { errorHandler } from "./common/error-handler.js";
+import { requireProductAccess } from "./common/auth-middleware.js";
 import { logger } from "./common/logger.js";
 import { initSocket } from "./lib/socket.js";
 import { authV1Routes, authLegacyRoutes } from "./modules/auth/auth.routes.js";
@@ -117,6 +118,7 @@ app.use(
   }),
 );
 app.use(express.json({ limit: "5mb" }));
+app.use(requireProductAccess);
 app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000,

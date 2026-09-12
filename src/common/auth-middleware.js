@@ -3,6 +3,7 @@ import { unauthorized, forbidden, AppError } from "./errors.js";
 import { env } from "../config/env.js";
 import { prisma } from "../lib/prisma.js";
 import { PLAN_HIERARCHY, planHasFeature } from "../utils/plans.js";
+import { canUseProduct, trialPayload } from "../utils/trial.js";
 
 export { isPlatformOwnerRole, isMainPlatformOwner, PLATFORM_OWNER_ROLES, MAX_PLATFORM_OWNERS } from "./auth-utils.js";
 
@@ -192,6 +193,78 @@ export async function loadUser(req, _res, next) {
   if (!user) return next(unauthorized("Session is no longer valid."));
   req.user = user;
   return next();
+}
+
+function isProductAccessExempt(req) {
+  const path = String(req.originalUrl || req.url || "").split("?")[0];
+  if (
+    /^\/api\/(?:v1\/)?auth(?:\/|$)/.test(path) ||
+    /^\/api\/v1\/billing(?:\/|$)/.test(path) ||
+    /^\/api\/(?:v1\/)?registrations(?:\/|$)/.test(path) ||
+    /^\/api\/(?:v1\/)?checkout(?:\/|$)/.test(path) ||
+    /^\/api\/(?:v1\/)?contact(?:\/|$)/.test(path) ||
+    /^\/api\/v1\/support(?:\/|$)/.test(path) ||
+    /^\/api\/v1\/platform(?:\/|$)/.test(path) ||
+    /^\/api\/v1\/jobs(?:\/|$)/.test(path) ||
+    /^\/api\/v1\/users\/me(?:\/|$)/.test(path) ||
+    /^\/api\/webhooks(?:\/|$)/.test(path)
+  ) {
+    return true;
+  }
+  if (req.method === "GET" && /^\/api\/v1\/dealerships\/me$/.test(path)) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * After the free trial, block writes until they subscribe.
+ * GET stays allowed so the dashboard can show a paywall.
+ */
+export async function requireProductAccess(req, res, next) {
+  try {
+    if (isProductAccessExempt(req)) return next();
+    if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return next();
+    if (isPlatformOwnerRole(req.auth?.role)) return next();
+
+    const headerAuth = req.headers.authorization || "";
+    if (!headerAuth.startsWith("Bearer ")) return next();
+
+    if (!req.auth) {
+      try {
+        const claims = verifyAccessToken(headerAuth.slice(7).trim());
+        req.auth = {
+          userId: String(claims.sub),
+          role: claims.role,
+          dealershipId: claims.dealershipId || null,
+          plan: claims.plan || null,
+        };
+      } catch {
+        return next();
+      }
+    }
+
+    if (isPlatformOwnerRole(req.auth.role) || !req.auth.dealershipId) {
+      return next();
+    }
+
+    const dealership = await prisma.dealership.findFirst({
+      where: { id: req.auth.dealershipId, deletedAt: null },
+    });
+    if (!dealership) return next();
+    if (canUseProduct(dealership)) return next();
+
+    return next(
+      new AppError(
+        "Your trial has ended. Please add a payment method to continue.",
+        403,
+        "BILLING_REQUIRED",
+        trialPayload(dealership),
+      ),
+    );
+  } catch (err) {
+    return next(err);
+  }
 }
 
 export const ADMIN_ROLES = ["owner", "manager", "platform_owner"];

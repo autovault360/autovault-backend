@@ -5,6 +5,7 @@ import { pageMeta } from "../../common/validate.js";
 import {
   expenseAmountInRange,
 } from "../expenses/recurring-expenses.js";
+import { isFirstVehicleForDealership } from "../vehicles/first-vehicle.js";
 
 function resolveRange(query = {}) {
   if (query.from || query.to) {
@@ -238,6 +239,7 @@ export async function getVehicle(dealershipId, id) {
 }
 
 export async function createVehicle(dealershipId, payload, userId) {
+  const isFirstVehicle = await isFirstVehicleForDealership(dealershipId);
   const vin = String(payload.vin || "").toUpperCase().trim();
   const dup = await prisma.vehicle.findFirst({
     where: { dealershipId, vin, deletedAt: null },
@@ -277,7 +279,7 @@ export async function createVehicle(dealershipId, payload, userId) {
     },
   });
 
-  return serializeWholesaleVehicle(vehicle);
+  return { vehicle: serializeWholesaleVehicle(vehicle), isFirstVehicle };
 }
 
 export async function updateVehicle(dealershipId, id, payload) {

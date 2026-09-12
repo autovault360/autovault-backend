@@ -1,4 +1,5 @@
 import * as dealsService from "./deals.service.js";
+import { emitFirstVehicleConversion } from "../../lib/meta-capi.js";
 
 function ctx(req) {
   return {
@@ -20,7 +21,11 @@ export async function importPreviousSold(req, res) {
     ...ctx(req),
     plan: req.auth?.plan || null,
   });
-  return res.status(201).json(result);
+  const meta = emitFirstVehicleConversion(req, {
+    vehicle: result.vehicle,
+    isFirstVehicle: result.isFirstVehicle,
+  });
+  return res.status(201).json({ ...result, ...meta });
 }
 
 export async function markLoss(req, res) {

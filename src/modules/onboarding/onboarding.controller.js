@@ -1,18 +1,48 @@
 import * as registrationService from "./registration.service.js";
 import * as checkoutService from "./checkout.service.js";
 import * as webhookService from "./webhook.service.js";
+import { sendLeadCapi, sendTrialStartCapi, trialStartEventId } from "../../lib/meta-capi.js";
 
 export async function upsertRegistration(req, res) {
   const result = await registrationService.upsertRegistration(req.body);
+  sendLeadCapi(req, {
+    eventId: req.body?.eventId,
+    email: req.body?.email,
+    phone: req.body?.phone,
+  });
+  if (result.status === "active") {
+    sendTrialStartCapi(req, {
+      registrationId: result.registrationId,
+      email: result.loginEmail || req.body?.email,
+      phone: req.body?.phone,
+    });
+  }
   return res.status(result.created ? 201 : 200).json({
     registrationId: result.registrationId,
     status: result.status,
+    completionToken: result.completionToken || null,
+    loginPath: result.loginPath || null,
+    loginEmail: result.loginEmail || null,
+    metaEventId: result.registrationId
+      ? trialStartEventId(result.registrationId)
+      : null,
   });
 }
 
 export async function completeRegistration(req, res) {
   const result = await registrationService.completeRegistration(req.query.token);
-  return res.json(result);
+  const reg = result?.registration;
+  if (reg?.id && reg.status === "active") {
+    sendTrialStartCapi(req, {
+      registrationId: reg.id,
+      email: reg.loginEmail || reg.email,
+      phone: reg.phone,
+    });
+  }
+  return res.json({
+    ...result,
+    metaEventId: reg?.id ? trialStartEventId(reg.id) : null,
+  });
 }
 
 export async function createCheckout(req, res) {

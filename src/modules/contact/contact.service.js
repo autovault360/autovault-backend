@@ -57,7 +57,7 @@ function formatSubmittedAt(date = new Date()) {
 export async function submitContact(payload, ip) {
   if (payload.website) {
     // Silent success for bots
-    return { ok: true };
+    return { ok: true, ignored: true };
   }
 
   checkRateLimit(ip);

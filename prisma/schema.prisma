@@ -236,6 +236,10 @@ model Dealership {
   cardExpMonth         Int?
   cardExpYear          Int?
   currentPeriodEnd     DateTime?
+  trialEndsAt          DateTime?
+  trialEmail7For       DateTime?
+  trialEmail3For       DateTime?
+  trialEndedEmailFor   DateTime?
   kpiColors            Json?
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt

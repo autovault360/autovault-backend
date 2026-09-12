@@ -19,6 +19,7 @@
     "db:seed:wholesale": "node prisma/seed-wholesale.js",
     "db:create-user": "node prisma/create-user.js",
     "db:delete-user": "node prisma/delete-user.js",
+    "trial:set": "node prisma/set-trial.js",
     "r2:cors": "node scripts/configure-r2-cors.mjs",
     "test": "vitest run",
     "test:watch": "vitest",

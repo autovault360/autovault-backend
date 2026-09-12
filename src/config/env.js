@@ -61,8 +61,8 @@ export const env = {
   )
     .toLowerCase()
     .trim(),
-  SUPABASE_URL: process.env.SUPABASE_URL || "https://krvbvzwgujujyqsapwxr.supabase.co",
-  SUPABASE_KEY: process.env.SUPABASE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtydmJ2endndWp1anlxc2Fwd3hyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NzY3MjYzOSwiZXhwIjoyMTAzMjQ4NjM5fQ.zIxcCD-zYC-hHPUyFDJL2Y3Etrn71k-qOUlrzJa0HLc",
+  SUPABASE_URL: process.env.SUPABASE_URL || "",
+  SUPABASE_KEY: process.env.SUPABASE_KEY || "",
 
 
   // Meta (Facebook & Instagram) API Credentials — social posting

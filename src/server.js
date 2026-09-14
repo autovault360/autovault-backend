@@ -65,6 +65,8 @@ import { supportRouter } from "./modules/support/support.routes.js";
 import { runTaxReminders } from "./jobs/tax-reminders.js";
 import { runBillingReminders } from "./jobs/billing-reminders.js";
 import { runMessageJobs } from "./jobs/messages.js";
+import { runEmailJobs, startEmailQueueWorker } from "./jobs/email.js";
+import { rateLimitWithRedis } from "./lib/rate-limit-store.js";
 
 assertRequiredEnv();
 
@@ -120,12 +122,17 @@ app.use(
 app.use(express.json({ limit: "5mb" }));
 app.use(requireProductAccess);
 app.use(
-  rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: env.NODE_ENV === "production" ? 250 : 3000,
-    standardHeaders: true,
-    legacyHeaders: false,
-  }),
+  rateLimit(
+    rateLimitWithRedis(
+      {
+        windowMs: 15 * 60 * 1000,
+        max: env.NODE_ENV === "production" ? 250 : 3000,
+        standardHeaders: true,
+        legacyHeaders: false,
+      },
+      "global",
+    ),
+  ),
 );
 
 app.get("/", (_req, res) => {
@@ -140,44 +147,42 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok", version: "2.0.0" });
 });
 
-app.get("/api/v1/jobs/tax-reminders", async (_req, res, next) => {
-  try {
-    const key = _req.headers["x-cron-key"] || _req.query.key;
-    if (key !== env.OWNER_API_KEY) {
-      return res.status(401).json({ error: { message: "Unauthorized" } });
+function cronEndpoint(run) {
+  return async (req, res, next) => {
+    try {
+      const key = req.headers["x-cron-key"] || req.query.key;
+      if (key !== env.OWNER_API_KEY) {
+        return res.status(401).json({ error: { message: "Unauthorized" } });
+      }
+      const result = await run(req);
+      return res.json({ ok: true, result });
+    } catch (err) {
+      return next(err);
     }
-    const result = await runTaxReminders();
-    return res.json({ ok: true, result });
-  } catch (err) {
-    return next(err);
-  }
-});
+  };
+}
 
-app.get("/api/v1/jobs/billing-reminders", async (_req, res, next) => {
-  try {
-    const key = _req.headers["x-cron-key"] || _req.query.key;
-    if (key !== env.OWNER_API_KEY) {
-      return res.status(401).json({ error: { message: "Unauthorized" } });
-    }
-    const result = await runBillingReminders();
-    return res.json({ ok: true, result });
-  } catch (err) {
-    return next(err);
-  }
-});
+app.get(
+  "/api/v1/jobs/tax-reminders",
+  cronEndpoint(() => runTaxReminders()),
+);
 
-app.get("/api/v1/jobs/messages", async (_req, res, next) => {
-  try {
-    const key = _req.headers["x-cron-key"] || _req.query.key;
-    if (key !== env.OWNER_API_KEY) {
-      return res.status(401).json({ error: { message: "Unauthorized" } });
-    }
-    const result = await runMessageJobs();
-    return res.json({ ok: true, result });
-  } catch (err) {
-    return next(err);
-  }
-});
+app.get(
+  "/api/v1/jobs/billing-reminders",
+  cronEndpoint(() => runBillingReminders()),
+);
+
+app.get(
+  "/api/v1/jobs/messages",
+  cronEndpoint(() => runMessageJobs()),
+);
+
+app.get(
+  "/api/v1/jobs/email",
+  cronEndpoint((req) =>
+    runEmailJobs({ max: Number(req.query.max) || 50 }),
+  ),
+);
 
 app.use("/api/v1/auth", authV1Routes);
 app.use("/api/v1/dealerships", dealershipRoutes);
@@ -229,6 +234,7 @@ export async function startServer() {
   await connectDb();
   const httpServer = http.createServer(app);
   initSocket(httpServer);
+  startEmailQueueWorker();
   const port = env.PORT || 3000;
   httpServer.listen(port, "0.0.0.0", () => {
     // console so PM2 out logs always show something even if pino is quiet

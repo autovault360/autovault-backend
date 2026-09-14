@@ -1,12 +1,13 @@
-import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
-
-const SALT_ROUNDS = 12;
+import {
+  hashPasswordBcrypt,
+  comparePasswordBcrypt,
+} from "../lib/password-hash.js";
 
 export async function hashPassword(password) {
-  return bcrypt.hash(String(password), SALT_ROUNDS);
+  return hashPasswordBcrypt(password);
 }
 
 export async function verifyPassword(password, hash) {
@@ -16,7 +17,7 @@ export async function verifyPassword(password, hash) {
     const legacy = crypto.createHash("sha256").update(String(password || "")).digest("hex");
     return legacy === hash;
   }
-  return bcrypt.compare(String(password), hash);
+  return comparePasswordBcrypt(password, hash);
 }
 
 /** Matches client change-password rules (length + complexity). */

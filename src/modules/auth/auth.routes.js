@@ -3,6 +3,7 @@ import rateLimit from "express-rate-limit";
 import { asyncHandler } from "../../common/error-handler.js";
 import { validateBody } from "../../common/validate.js";
 import { authenticate } from "../../common/auth-middleware.js";
+import { rateLimitWithRedis } from "../../lib/rate-limit-store.js";
 import {
   loginSchema,
   refreshSchema,
@@ -12,17 +13,37 @@ import {
 } from "./auth.schema.js";
 import * as ctrl from "./auth.controller.js";
 
-const forgotPasswordLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { message: "Too many password reset requests. Try again later." },
-});
+const forgotPasswordLimiter = rateLimit(
+  rateLimitWithRedis(
+    {
+      windowMs: 15 * 60 * 1000,
+      max: 5,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { message: "Too many password reset requests. Try again later." },
+    },
+    "forgot-password",
+  ),
+);
+
+const loginLimiter = rateLimit(
+  rateLimitWithRedis(
+    {
+      windowMs: 15 * 60 * 1000,
+      max: 5,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: {
+        message: "Too many login attempts. Please try again later.",
+      },
+    },
+    "login",
+  ),
+);
 
 const v1Router = express.Router();
 
-v1Router.post("/login", validateBody(loginSchema), asyncHandler(ctrl.loginV1));
+v1Router.post("/login", loginLimiter, validateBody(loginSchema), asyncHandler(ctrl.loginV1));
 v1Router.post("/refresh", validateBody(refreshSchema), asyncHandler(ctrl.refresh));
 v1Router.post("/logout", asyncHandler(ctrl.logout));
 v1Router.get("/me", authenticate, asyncHandler(ctrl.me));
@@ -47,7 +68,7 @@ v1Router.post(
 /** Legacy Static frontend routes (POST /api/auth/login, GET /api/auth/me) */
 const legacyRouter = express.Router();
 
-legacyRouter.post("/login", validateBody(loginSchema), asyncHandler(ctrl.login));
+legacyRouter.post("/login", loginLimiter, validateBody(loginSchema), asyncHandler(ctrl.login));
 legacyRouter.get("/me", authenticate, asyncHandler(ctrl.meLegacy));
 
 export { v1Router as authV1Routes, legacyRouter as authLegacyRoutes };

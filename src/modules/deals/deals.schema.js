@@ -23,7 +23,7 @@ export const markSoldSchema = z
   .object({
     ...customerFields,
     saleDate: z.coerce.date(),
-    soldPrice: z.coerce.number().positive(),
+    soldPrice: z.coerce.number().min(0),
     salesTaxAmount: z.coerce.number().min(0).default(0),
     licenseFees: z.coerce.number().min(0).default(0),
     salesRepId: z.string().uuid().nullable().optional(),

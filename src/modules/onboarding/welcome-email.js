@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { prisma } from "../../lib/prisma.js";
+import { enqueueJob } from "../../lib/redis.js";
 import { env } from "../../config/env.js";
 import { sendEmail } from "../../utils/email.js";
 import { subscriptionWelcomeEmail } from "../../utils/email-templates.js";
@@ -85,31 +86,39 @@ export async function sendWelcomeIfNeeded(registrationId) {
     const loginPath = loginPathForPortal(portalForPlan(reg.plan));
 
     const loginUrl = `${base}${loginPath}`;
-    await sendEmail({
-      to: reg.email,
-      subject: "Your AutoVault 25-day free trial is ready",
-      text: [
-        `Hi ${reg.name || "there"},`,
-        "",
-        "Your AutoVault 25-day free trial is ready. No credit card required.",
-        "",
-        `Login page: ${loginUrl}`,
-        `Email: ${reg.email}`,
-        `Temporary password: ${temporaryPassword}`,
-        "",
-        "Change the temporary password after you sign in.",
-        "If this was not you, ignore this email.",
-      ].join("\n"),
-      html: subscriptionWelcomeEmail({
-        name: reg.name,
-        loginEmail: reg.email,
-        temporaryPassword,
-        dealership: reg.dealershipName,
-        plan: PLAN_SLUG_TO_LABEL[reg.plan] || reg.plan,
-        monthlyFee: reg.monthlyFee,
-        loginUrl,
-      }),
+    const subject = "Your AutoVault 25-day free trial is ready";
+    const text = [
+      `Hi ${reg.name || "there"},`,
+      "",
+      "Your AutoVault 25-day free trial is ready. No credit card required.",
+      "",
+      `Login page: ${loginUrl}`,
+      `Email: ${reg.email}`,
+      `Temporary password: ${temporaryPassword}`,
+      "",
+      "Change the temporary password after you sign in.",
+      "If this was not you, ignore this email.",
+    ].join("\n");
+    const html = subscriptionWelcomeEmail({
+      name: reg.name,
+      loginEmail: reg.email,
+      temporaryPassword,
+      dealership: reg.dealershipName,
+      plan: PLAN_SLUG_TO_LABEL[reg.plan] || reg.plan,
+      monthlyFee: reg.monthlyFee,
+      loginUrl,
     });
+
+    const enqueued = await enqueueJob("email", {
+      type: "welcome",
+      to: reg.email,
+      subject,
+      html,
+      dealershipId: reg.dealershipId || null,
+    });
+    if (!enqueued) {
+      await sendEmail({ to: reg.email, subject, text, html });
+    }
 
     await prisma.registration.update({
       where: { id: registrationId },
@@ -119,7 +128,7 @@ export async function sendWelcomeIfNeeded(registrationId) {
         welcomeEmailLockId: null,
       },
     });
-    logger.info({ registrationId, to: reg.email }, "welcome email sent");
+    logger.info({ registrationId, to: reg.email }, "welcome email queued or sent");
     return { sent: true, email: reg.email, temporaryPassword };
   } catch (error) {
     await prisma.registration.updateMany({

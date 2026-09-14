@@ -1,7 +1,10 @@
 import { Server } from "socket.io";
+import IORedis from "ioredis";
+import { createAdapter } from "@socket.io/redis-adapter";
 import { verifyAccessToken } from "../common/auth-utils.js";
 import { logger } from "../common/logger.js";
 import { prisma } from "./prisma.js";
+import { env } from "../config/env.js";
 
 let io = null;
 
@@ -21,6 +24,8 @@ export function initSocket(httpServer) {
     pingInterval: 25000,
     pingTimeout: 20000,
   });
+
+  attachRedisAdapter();
 
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token;
@@ -279,6 +284,45 @@ export function initSocket(httpServer) {
 
   logger.info("[socket] Socket.io initialized");
   return io;
+}
+
+/**
+ * Broadcast messages across PM2 cluster workers (and future horizontally
+ * scaled instances) via the Redis pub/sub adapter. Same Redis as the job
+ * queue; skipped when REDIS_URL is not configured.
+ */
+function attachRedisAdapter() {
+  if (!env.REDIS_URL) return;
+  // Offline-queue ON: with REDIS_URL configured but Redis temporarily down this
+  // queues the subscribe call instead of rejecting it, so the process must not
+  // crash; commands flush automatically once Redis reconnects (infinite retry).
+  let lastErrorLog = 0;
+  const onRedisError = (role) => (err) => {
+    const now = Date.now();
+    if (now - lastErrorLog > 60_000) {
+      lastErrorLog = now;
+      logger.warn(
+        { role, err: err?.message },
+        "[socket] adapter redis unavailable, using in-memory (single-instance)",
+      );
+    }
+  };
+  try {
+    const pub = new IORedis(env.REDIS_URL, {
+      enableOfflineQueue: true,
+      maxRetriesPerRequest: null,
+    });
+    const sub = pub.duplicate();
+    pub.on("error", onRedisError("pub"));
+    sub.on("error", onRedisError("sub"));
+    io.adapter(createAdapter(pub, sub));
+    logger.info("[socket] Socket.io using Redis adapter");
+  } catch (err) {
+    logger.warn(
+      { err: err?.message },
+      "[socket] Redis adapter unavailable, using in-memory (single-instance)",
+    );
+  }
 }
 
 /** In-memory throttle so presence writes cannot exhaust Neon's small pool. */

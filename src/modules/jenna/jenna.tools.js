@@ -27,7 +27,12 @@ function vehicleAllIn(v) {
 function vehicleLine(v) {
   const allIn = vehicleAllIn(v);
   const sold = v.status === "sold" || v.status === "loss";
-  const profit = sold ? money(toNum(v.soldPrice) - allIn) : null;
+  const stored = v.deal ? toNum(v.deal.netProfit) : null;
+  const profit = sold
+    ? stored != null
+      ? money(stored)
+      : money(toNum(v.soldPrice) - allIn)
+    : null;
   return [
     `${v.year} ${v.make} ${v.model}`,
     `VIN ${v.vin}`,
@@ -105,6 +110,7 @@ export async function buildDealershipSnapshot(dealershipId) {
         registrationFees: true,
         additionalExpenses: true,
         soldPrice: true,
+        deal: { select: { netProfit: true, commissionAmount: true } },
       },
       take: 30,
     }),
@@ -169,6 +175,8 @@ export async function buildDealershipSnapshot(dealershipId) {
 
   const activeAllIn = activeVehicles.reduce((s, v) => s + vehicleAllIn(v), 0);
   const soldNet = soldMonth.reduce((s, v) => {
+    const stored = v.deal ? toNum(v.deal.netProfit) : null;
+    if (stored != null) return s + money(stored);
     return s + money(toNum(v.soldPrice) - vehicleAllIn(v));
   }, 0);
   const unpaidTot = unpaidExpenses.reduce((s, e) => s + money(e.amount), 0);

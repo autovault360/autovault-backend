@@ -12,6 +12,10 @@ import {
 } from "./vehicle-status.js";
 import { mergeJsonFees } from "../../common/fees.js";
 import { isFirstVehicleForDealership } from "./first-vehicle.js";
+import {
+  addOnRevenueFromFees,
+  computeDealNetProfit,
+} from "../../common/deal-profit.js";
 
 function toDecimal(value) {
   if (value == null) return 0;
@@ -168,11 +172,22 @@ async function summarizeSoldInRange(dealershipId, start, end) {
       select: {
         soldPrice: true,
         totalInvested: true,
+        fees: true,
         deal: {
           select: {
             salesTaxAmount: true,
+            licenseFees: true,
             commissionAmount: true,
-            netProfit: true,
+          },
+        },
+        dealJackets: {
+          where: { deletedAt: null },
+          take: 1,
+          orderBy: { createdAt: "desc" },
+          select: {
+            fees: true,
+            additionalExpenses: true,
+            commissionAmount: true,
           },
         },
       },
@@ -184,16 +199,29 @@ async function summarizeSoldInRange(dealershipId, start, end) {
   let profit = 0;
   for (const row of soldRows) {
     const deal = row.deal;
+    const jacket = Array.isArray(row.dealJackets) ? row.dealJackets[0] : null;
+    const fees =
+      jacket && jacket.fees && typeof jacket.fees === "object"
+        ? jacket.fees
+        : row.fees && typeof row.fees === "object"
+          ? row.fees
+          : {};
     const soldPrice = toNum(row.soldPrice) ?? 0;
     const invested = toNum(row.totalInvested) ?? 0;
-    const comm = toNum(deal?.commissionAmount) ?? 0;
+    const comm =
+      toNum(deal?.commissionAmount) ?? toNum(jacket?.commissionAmount) ?? 0;
     salesTax += toNum(deal?.salesTaxAmount) ?? 0;
     commission += comm;
-    if (deal?.netProfit != null) {
-      profit += toNum(deal.netProfit) ?? 0;
-    } else {
-      profit += soldPrice - invested - comm;
-    }
+    profit += computeDealNetProfit({
+      soldPrice,
+      addOnRevenue: addOnRevenueFromFees(fees),
+      totalInvested: invested,
+      additionalExpenses: toNum(jacket?.additionalExpenses),
+      commissionAmount: comm,
+      netCheck: fees.netCheck,
+      salesTax: toNum(deal?.salesTaxAmount),
+      licenseFees: toNum(deal?.licenseFees),
+    });
   }
 
   return {
@@ -595,14 +623,42 @@ export async function updateVehicle(
       dealPatch.totalPriceOtd = nextSold + nextTax + nextLic;
     }
 
+    const jacketForProfit = await prisma.dealJacket.findFirst({
+      where: { vehicleId, dealershipId, deletedAt: null },
+      orderBy: { createdAt: "desc" },
+    });
+    const profitInputsChanged =
+      data.soldPrice !== undefined ||
+      dealSync.salesTaxAmount !== undefined ||
+      dealSync.licenseFees !== undefined ||
+      dealSync.commissionAmount !== undefined;
+    if (profitInputsChanged) {
+      const fees =
+        jacketForProfit && jacketForProfit.fees && typeof jacketForProfit.fees === "object"
+          ? jacketForProfit.fees
+          : existing.fees && typeof existing.fees === "object"
+            ? existing.fees
+            : {};
+      dealPatch.netProfit = computeDealNetProfit({
+        soldPrice: nextSold,
+        addOnRevenue: addOnRevenueFromFees(fees),
+        totalInvested: toDecimal(existing.totalInvested),
+        additionalExpenses: toDecimal(jacketForProfit?.additionalExpenses),
+        commissionAmount:
+          dealSync.commissionAmount !== undefined
+            ? toDecimal(dealSync.commissionAmount)
+            : toDecimal(deal.commissionAmount),
+        netCheck: fees.netCheck,
+        salesTax: nextTax,
+        licenseFees: nextLic,
+      });
+    }
+
     if (Object.keys(dealPatch).length) {
       await prisma.deal.update({ where: { id: deal.id }, data: dealPatch });
     }
 
-    const jacket = await prisma.dealJacket.findFirst({
-      where: { vehicleId, dealershipId, deletedAt: null },
-      orderBy: { createdAt: "desc" },
-    });
+    const jacket = jacketForProfit;
     if (jacket) {
       const jacketPatch = {};
       if (data.soldPrice !== undefined) jacketPatch.soldPrice = data.soldPrice;
@@ -636,9 +692,20 @@ export async function updateVehicle(
             ? dealSync.commissionAmount
             : jacket.commissionAmount,
         );
+        const fees =
+          jacket.fees && typeof jacket.fees === "object" ? jacket.fees : {};
         const gross = nextSold - invested;
         jacketPatch.profitGross = gross;
-        jacketPatch.profitNet = gross - commission;
+        jacketPatch.profitNet = computeDealNetProfit({
+          soldPrice: nextSold,
+          addOnRevenue: addOnRevenueFromFees(fees),
+          totalInvested: invested,
+          additionalExpenses: toDecimal(jacket.additionalExpenses),
+          commissionAmount: commission,
+          netCheck: fees.netCheck,
+          salesTax: nextTax,
+          licenseFees: nextLic,
+        });
       }
       if (Object.keys(jacketPatch).length) {
         await prisma.dealJacket.update({

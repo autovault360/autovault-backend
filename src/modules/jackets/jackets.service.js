@@ -11,6 +11,7 @@ import { compressDataUrl } from "../../utils/image-compress.js";
 import { env } from "../../config/env.js";
 import { deleteR2Object, isR2Configured } from "../../lib/r2.js";
 import { mergeJsonFees } from "../../common/fees.js";
+import { computeDealNetProfit } from "../../common/deal-profit.js";
 
 const FINAL_STATUSES = ["approved", "rejected"];
 
@@ -186,12 +187,17 @@ function computeFinancials(vehicle, payload) {
   const commissionType = payload.commissionType || "percentage";
   const commissionRate =
     payload.commissionRate ?? (commissionType === "flat" ? 0 : 0.1);
-  const commissionAmount = computeCommissionAmount(profitGross, {
-    commissionAmount: payload.commissionAmount,
-    commissionRate,
-    commissionType,
-    resolved: payload._resolvedCommission,
-  });
+  // PAUSED: commission auto-calculation disabled — only explicit commissionAmount is used
+  const commissionAmount =
+    payload.commissionAmount != null
+      ? roundMoney(payload.commissionAmount)
+      : 0;
+  // const commissionAmount = computeCommissionAmount(profitGross, {
+  //   commissionAmount: payload.commissionAmount,
+  //   commissionRate,
+  //   commissionType,
+  //   resolved: payload._resolvedCommission,
+  // });
   const feesObj =
     payload.fees && typeof payload.fees === "object" ? payload.fees : {};
   const addOnItems = Array.isArray(feesObj.addOnItems) ? feesObj.addOnItems : [];
@@ -208,33 +214,22 @@ function computeFinancials(vehicle, payload) {
   );
   const netCheckRaw =
     payload.netCheck ?? (feesObj.netCheck != null ? feesObj.netCheck : null);
-  const hasNetCheck =
-    netCheckRaw !== null &&
-    netCheckRaw !== undefined &&
-    netCheckRaw !== "";
   const salesTax = roundMoney(
     payload.totalTax ??
       payload.salesTaxAmount ??
       0,
   );
   const licenseFees = roundMoney(payload.licenseFees ?? 0);
-  // Net Check − tax − reg − invested − add-on cost − commission
-  const profitNet = hasNetCheck
-    ? roundMoney(
-        Number(netCheckRaw) -
-          salesTax -
-          licenseFees -
-          vehicleInvested -
-          additionalExpenses -
-          commissionAmount,
-      )
-    : roundMoney(
-        soldPrice +
-          addOnRevFromItems -
-          vehicleInvested -
-          additionalExpenses -
-          commissionAmount,
-      );
+  const profitNet = computeDealNetProfit({
+    soldPrice,
+    addOnRevenue: addOnRevFromItems,
+    totalInvested: vehicleInvested,
+    additionalExpenses,
+    commissionAmount,
+    netCheck: netCheckRaw,
+    salesTax,
+    licenseFees,
+  });
   const totalSalePrice =
     payload.totalSalePrice ??
     soldPrice + (payload.totalTax ?? 0);
@@ -442,20 +437,18 @@ export async function createJacket(dealershipId, payload, ctx) {
 
   const salesRepId =
     ctx.role === "sales_rep" ? ctx.userId : (payload.salesRepId ?? null);
-  const resolved = await resolveSalesRepCommission(salesRepId);
+  // PAUSED: commission auto-calculation disabled — rep profile no longer auto-fills rate
+  // const resolved = await resolveSalesRepCommission(salesRepId);
   const commissionType =
     payload.commissionType ||
     (payload.commissionAmount != null && payload.commissionRate == null
       ? "manual"
-      : resolved.type);
-  const commissionRate =
-    payload.commissionRate ??
-    (resolved.type === "flat" ? resolved.amount : resolved.rate);
+      : "manual");
+  const commissionRate = payload.commissionRate ?? null;
   const financials = computeFinancials(vehicle, {
     ...payload,
     commissionRate,
     commissionType,
-    _resolvedCommission: resolved,
   });
 
   const jacket = await prisma.$transaction(async (tx) => {
@@ -550,14 +543,15 @@ export async function updateJacket(id, dealershipId, payload, ctx) {
 
   const salesRepIdForRate =
     payload.salesRepId !== undefined ? payload.salesRepId : jacket.salesRepId;
-  const resolved = salesRepIdForRate
-    ? await resolveSalesRepCommission(salesRepIdForRate)
-    : { type: "percentage", rate: 0, amount: null };
+  // PAUSED: commission auto-calculation disabled — rep profile no longer auto-fills rate
+  // const resolved = salesRepIdForRate
+  //   ? await resolveSalesRepCommission(salesRepIdForRate)
+  //   : { type: "percentage", rate: 0, amount: null };
   const commissionType =
     payload.commissionType ||
     (payload.commissionAmount != null && payload.commissionRate == null
       ? "manual"
-      : resolved.type);
+      : "manual");
   const merged = {
     soldPrice: payload.soldPrice ?? toNum(jacket.soldPrice),
     totalTax: payload.totalTax ?? toNum(jacket.totalTax),
@@ -569,13 +563,10 @@ export async function updateJacket(id, dealershipId, payload, ctx) {
     downPayment: payload.downPayment ?? toNum(jacket.downPayment),
     additionalExpenses:
       payload.additionalExpenses ?? toNum(jacket.additionalExpenses),
-    commissionRate:
-      payload.commissionRate ??
-      (resolved.type === "flat" ? resolved.amount : resolved.rate ?? 0),
+    commissionRate: payload.commissionRate ?? null,
     commissionAmount:
       payload.commissionAmount ?? toNum(jacket.commissionAmount),
     commissionType,
-    _resolvedCommission: resolved,
     fees:
       payload.fees != null
         ? mergeJsonFees(jacket.fees, payload.fees)

@@ -16,6 +16,7 @@ import {
 import { nextPlaceholderVin, normalizeVin } from "../../common/vin.js";
 import { mergeJsonFees } from "../../common/fees.js";
 import { isFirstVehicleForDealership } from "../vehicles/first-vehicle.js";
+import { computeDealNetProfit } from "../../common/deal-profit.js";
 
 function serializeVehicle(v) {
   if (!v) return null;
@@ -168,28 +169,29 @@ export async function markSold(vehicleId, payload, ctx) {
   const soldPrice = roundMoney(payload.soldPrice);
   const totalInvested = toNum(vehicle.totalInvested) ?? 0;
   const grossProfit = roundMoney(soldPrice - totalInvested);
-  const resolved = payload.salesRepId
-    ? await resolveSalesRepCommission(payload.salesRepId)
-    : { type: "percentage", rate: 0, amount: null };
+  // PAUSED: commission auto-calculation disabled — only explicit commissionAmount is used
   const commissionType =
     payload.commissionType ||
     (payload.commissionAmount != null && payload.commissionRate == null
       ? "manual"
-      : resolved.type === "flat"
-        ? "flat"
-        : "percentage");
-  const commissionRate =
-    payload.commissionRate ??
-    (commissionType === "flat" ? null : resolved.rate ?? 0);
-  const commissionAmount = computeCommissionAmount(grossProfit, {
-    commissionAmount: payload.commissionAmount,
-    commissionRate:
-      commissionType === "flat"
-        ? (payload.commissionRate ?? resolved.amount)
-        : commissionRate,
-    commissionType,
-    resolved,
-  });
+      : "manual");
+  const commissionRate = payload.commissionRate ?? null;
+  const commissionAmount =
+    payload.commissionAmount != null
+      ? roundMoney(payload.commissionAmount)
+      : 0;
+  // const resolved = payload.salesRepId
+  //   ? await resolveSalesRepCommission(payload.salesRepId)
+  //   : { type: "percentage", rate: 0, amount: null };
+  // const commissionAmount = computeCommissionAmount(grossProfit, {
+  //   commissionAmount: payload.commissionAmount,
+  //   commissionRate:
+  //     commissionType === "flat"
+  //       ? (payload.commissionRate ?? resolved.amount)
+  //       : commissionRate,
+  //   commissionType,
+  //   resolved,
+  // });
 
   const salesTax = roundMoney(payload.salesTaxAmount ?? 0);
   const licenseFees = roundMoney(payload.licenseFees ?? 0);
@@ -222,28 +224,20 @@ export async function markSold(vehicleId, payload, ctx) {
   const netCheckRaw =
     payload.netCheck ??
     (feesObj.netCheck != null ? feesObj.netCheck : null);
+  const profitNet = computeDealNetProfit({
+    soldPrice,
+    addOnRevenue: addOnRevFromItems,
+    totalInvested,
+    additionalExpenses,
+    commissionAmount,
+    netCheck: netCheckRaw,
+    salesTax,
+    licenseFees,
+  });
   const hasNetCheck =
     netCheckRaw !== null &&
     netCheckRaw !== undefined &&
     netCheckRaw !== "";
-  // Financed: Net Check already includes dealer reserve / add-on upcharges.
-  // Cash/retail: sold price + add-on revenue − invested − add-on cost − commission.
-  const profitNet = hasNetCheck
-    ? roundMoney(
-        Number(netCheckRaw) -
-          salesTax -
-          licenseFees -
-          totalInvested -
-          additionalExpenses -
-          commissionAmount,
-      )
-    : roundMoney(
-        soldPrice +
-          addOnRevFromItems -
-          totalInvested -
-          additionalExpenses -
-          commissionAmount,
-      );
   const saleDate = payload.saleDate || vehicle.soldAt || new Date();
 
   // Sequential writes (not interactive $transaction) — Neon pooled
@@ -562,23 +556,24 @@ export async function importPreviousSold(payload, ctx) {
   let commissionRate = 0;
   let commissionType = "manual";
   if (allowCommission && salesRepId) {
-    const resolved = await resolveSalesRepCommission(salesRepId);
+    // PAUSED: commission auto-calculation disabled — only explicit commissionAmount is used
     commissionType =
       payload.commissionType ||
       (payload.commissionAmount != null && payload.commissionRate == null
         ? "manual"
-        : resolved.type === "flat"
-          ? "flat"
-          : "percentage");
-    commissionRate =
-      payload.commissionRate ??
-      (resolved.type === "flat" ? resolved.amount ?? 0 : resolved.rate ?? 0);
-    commissionAmount = computeCommissionAmount(soldPrice - totalInvested, {
-      commissionAmount: payload.commissionAmount,
-      commissionRate,
-      commissionType,
-      resolved,
-    });
+        : "manual");
+    commissionRate = payload.commissionRate ?? null;
+    commissionAmount =
+      payload.commissionAmount != null
+        ? roundMoney(payload.commissionAmount)
+        : 0;
+    // const resolved = await resolveSalesRepCommission(salesRepId);
+    // commissionAmount = computeCommissionAmount(soldPrice - totalInvested, {
+    //   commissionAmount: payload.commissionAmount,
+    //   commissionRate,
+    //   commissionType,
+    //   resolved,
+    // });
   } else if (allowCommission && payload.commissionAmount != null) {
     commissionAmount = roundMoney(payload.commissionAmount);
     commissionType = payload.commissionType || "manual";
@@ -643,15 +638,16 @@ export async function importPreviousSold(payload, ctx) {
 
   const grossProfit = roundMoney(soldPrice + addOnRevenue - totalInvested);
   const totalPriceOtd = roundMoney(soldPrice + addOnRevenue + salesTax + licenseFees);
-  const profitNet = hasNetCheck
-    ? roundMoney(
-        Number(netCheckRaw) -
-          salesTax -
-          licenseFees -
-          totalInvested -
-          commissionAmount,
-      )
-    : roundMoney(grossProfit - commissionAmount);
+  const profitNet = computeDealNetProfit({
+    soldPrice,
+    addOnRevenue,
+    totalInvested,
+    additionalExpenses: addOns,
+    commissionAmount,
+    netCheck: netCheckRaw,
+    salesTax,
+    licenseFees,
+  });
 
   // Deal stores sale/customer data; deal jacket is auto-created below.
   const deal = await prisma.deal.create({
